@@ -3,8 +3,8 @@ package models
 import "time"
 
 type BookingRequest struct {
-	Query    string    `json:"query"`    // Natural language query for the booking
-	Deadline time.Time `json:"deadline"` // When to stop looking for deals (must be translated to a valid time.Time)
+	Query    string `json:"query"`    // Natural language query for the booking
+	Deadline string `json:"deadline"` // When to stop looking for deals
 }
 
 type BookingResponse struct {

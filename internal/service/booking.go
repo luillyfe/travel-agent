@@ -26,7 +26,7 @@ func (s *BookingService) ProcessBooking(req models.BookingRequest) (*models.Book
 		ID:        uuid.New().String(),
 		Status:    "pending",
 		Query:     req.Query,
-		Deadline:  req.Deadline,
+		Deadline:  time.Now(),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
