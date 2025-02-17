@@ -1,0 +1,214 @@
+openapi: 3.1.0
+info:
+  title: AI Travel Agent API
+  description: API for processing travel booking requests using AI
+  version: 1.0.0
+  contact:
+    name: Fermin Blanco
+    email: luillyfe@gmail.com
+
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+  - url: https://api.travel-agent.example.com
+    description: Production server
+
+paths:
+  /api/v1/bookings:
+    post:
+      summary: Create a new booking request
+      operationId: createBooking
+      tags:
+        - Bookings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingRequest"
+      responses:
+        "200":
+          description: Booking request created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/v1/bookings/status:
+    get:
+      summary: Get booking status
+      operationId: getBookingStatus
+      tags:
+        - Bookings
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Booking request ID
+      responses:
+        "200":
+          description: Booking status retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingResponse"
+        "400":
+          description: Invalid booking ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Booking not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+components:
+  schemas:
+    BookingRequest:
+      type: object
+      required:
+        - query
+        - deadline
+      properties:
+        query:
+          type: string
+          description: Natural language query for the booking
+          example: "Book a flight for a 3-day trip to Paris"
+          minLength: 1
+          maxLength: 500
+        deadline:
+          type: string
+          description: When to stop looking for deals
+          example: "within 2 days"
+
+    BookingResponse:
+      type: object
+      required:
+        - id
+        - status
+        - query
+        - deadline
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique booking request ID
+        status:
+          type: string
+          enum: [pending, processing, completed, failed]
+          description: Current status of the booking
+        query:
+          type: string
+          description: Original booking query
+        deadline:
+          type: string
+          format: date-time
+          description: Original deadline
+        flight:
+          $ref: "#/components/schemas/Flight"
+        message:
+          type: string
+          description: Additional information or error message
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp of when the booking was created
+        updated_at:
+          type: string
+          format: date-time
+          description: Timestamp of the last update
+
+    Flight:
+      type: object
+      required:
+        - airline
+        - flight_number
+        - departure_city
+        - arrival_city
+        - departure_time
+        - arrival_time
+        - price
+        - currency
+      properties:
+        airline:
+          type: string
+          description: Name of the airline
+          example: "Air France"
+        flight_number:
+          type: string
+          description: Flight number
+          example: "AF1234"
+        departure_city:
+          type: string
+          description: City of departure
+          example: "New York"
+        arrival_city:
+          type: string
+          description: City of arrival
+          example: "Paris"
+        departure_time:
+          type: string
+          format: date-time
+          description: Departure time
+        arrival_time:
+          type: string
+          format: date-time
+          description: Arrival time
+        price:
+          type: number
+          format: float
+          description: Price of the flight
+          example: 750.00
+          minimum: 0
+        currency:
+          type: string
+          description: Currency of the price
+          example: "USD"
+          minLength: 3
+          maxLength: 3
+
+    Error:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          description: Error message
+          example: "Invalid request parameters"
+        details:
+          type: object
+          description: Additional error details
+          additionalProperties: true
+
+tags:
+  - name: Bookings
+    description: Operations related to flight bookings
+
+security: [] # No security requirements for now

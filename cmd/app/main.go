@@ -2,18 +2,23 @@ package main
 
 import (
 	"log"
-	"travel-agent/internal/config"
-	"travel-agent/internal/server"
+	"net/http"
+	"travel-agent/internal/handlers"
+	"travel-agent/internal/service"
 )
 
 func main() {
-	cfg, err := config.Load()
-	if err != nil {
-		log.Fatalf("Failed to load configuration: %v", err)
-	}
+	// Initialize services
+	bookingService := service.NewBookingService()
+	bookingHandler := handlers.NewBookingHandler(bookingService)
 
-	srv := server.New(cfg)
-	if err := srv.Start(); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
+	// Setup routes
+	http.HandleFunc("/api/v1/bookings", bookingHandler.CreateBooking)
+	http.HandleFunc("/api/v1/bookings/status", bookingHandler.GetBooking)
+
+	// Start server
+	log.Printf("Server starting on :8080")
+	if err := http.ListenAndServe(":8080", nil); err != nil {
+		log.Fatalf("Server failed to start: %v", err)
 	}
 }
