@@ -59,7 +59,7 @@ Request body:
 ```json
 {
   "query": "Book a flight for a 3-day trip to Paris",
-  "deadline": "2024-02-18T15:04:05Z"
+  "deadline": "within 2 days"
 }
 ```
 
@@ -137,6 +137,7 @@ Pending Implementation:
 - ⏳ AI natural language processing
 - ⏳ Flight search integration
 - ⏳ Database persistence
+- ⏳ Implement booking status retrieval
 - ⏳ Authentication/Authorization
 - ⏳ Request validation
 - ⏳ Error handling middleware
