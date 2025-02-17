@@ -27,6 +27,12 @@ func (h *BookingHandler) CreateBooking(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// TODO: Replaced with struct tags for validation enforcement when switching to Gin
+	if req.Query == "" || req.Deadline == "" {
+		http.Error(w, "Query and Deadline are required", http.StatusBadRequest)
+		return
+	}
+
 	// Process the booking request
 	response, err := h.bookingService.ProcessBooking(req)
 	if err != nil {
