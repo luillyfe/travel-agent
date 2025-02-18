@@ -48,8 +48,8 @@ func (s *BookingService) ProcessBooking(req models.BookingRequest) (*models.Book
 		FlightDetails: &models.Flight{
 			DepartureCity: "User's City", // TODO: Extract from context
 			ArrivalCity:   aiResp.Destination,
-			DepartureTime: aiResp.DepartureDate,
-			ArrivalTime:   aiResp.ReturnDate,
+			DepartureTime: mustParseTime(aiResp.DepartureDate),
+			ArrivalTime:   mustParseTime(aiResp.ReturnDate),
 			// Other fields will be filled when actual flight is found
 		},
 		Deadline:  deadline,
@@ -59,4 +59,12 @@ func (s *BookingService) ProcessBooking(req models.BookingRequest) (*models.Book
 	}
 
 	return response, nil
+}
+
+func mustParseTime(timeStr string) time.Time {
+	t, err := time.Parse(time.RFC3339, timeStr)
+	if err != nil {
+		panic(fmt.Sprintf("invalid time format: %v", err))
+	}
+	return t
 }

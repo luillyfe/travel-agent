@@ -9,6 +9,7 @@ import (
 	"travel-agent/internal/handlers"
 	"travel-agent/internal/models"
 	"travel-agent/internal/service"
+	"travel-agent/internal/service/ai"
 )
 
 // Test data
@@ -18,6 +19,9 @@ var (
 )
 
 func TestBookingService_ProcessBooking(t *testing.T) {
+	// Create a mock inference engine for testing
+	mockEngine := &ai.InferenceEngine{}
+
 	tests := []struct {
 		name    string
 		req     models.BookingRequest
@@ -52,7 +56,7 @@ func TestBookingService_ProcessBooking(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := service.NewBookingService()
+			svc := service.NewBookingService(mockEngine)
 			resp, err := svc.ProcessBooking(tt.req)
 
 			if (err != nil) != tt.wantErr {
@@ -77,6 +81,8 @@ func TestBookingService_ProcessBooking(t *testing.T) {
 }
 
 func TestBookingHandler_CreateBooking(t *testing.T) {
+	mockEngine := &ai.InferenceEngine{}
+
 	tests := []struct {
 		name          string
 		requestBody   interface{}
@@ -120,7 +126,7 @@ func TestBookingHandler_CreateBooking(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create handler
-			svc := service.NewBookingService()
+			svc := service.NewBookingService(mockEngine)
 			handler := handlers.NewBookingHandler(svc)
 
 			// Create request
@@ -155,6 +161,8 @@ func TestBookingHandler_CreateBooking(t *testing.T) {
 }
 
 func TestBookingHandler_GetBooking(t *testing.T) {
+	mockEngine := &ai.InferenceEngine{}
+
 	tests := []struct {
 		name       string
 		bookingID  string
@@ -181,7 +189,7 @@ func TestBookingHandler_GetBooking(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create handler
-			svc := service.NewBookingService()
+			svc := service.NewBookingService(mockEngine)
 			handler := handlers.NewBookingHandler(svc)
 
 			// Create request
@@ -213,8 +221,10 @@ func TestBookingHandler_GetBooking(t *testing.T) {
 
 // Integration test
 func TestBookingFlow(t *testing.T) {
+	mockEngine := &ai.InferenceEngine{}
+
 	// Create service and handler
-	svc := service.NewBookingService()
+	svc := service.NewBookingService(mockEngine)
 	handler := handlers.NewBookingHandler(svc)
 
 	// 1. Create a booking

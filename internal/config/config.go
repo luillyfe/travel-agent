@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"time"
 )
 
 type Config struct {
@@ -14,19 +13,27 @@ type Config struct {
 }
 
 type AIProviderConfig struct {
-	APIKey         string        `json:"api_key" envconfig:"AI_PROVIDER_API_KEY" required:"true"`
-	Timeout        time.Duration `json:"timeout" envconfig:"AI_PROVIDER_TIMEOUT" default:"30s"`
-	RetryAttempts  int           `json:"retry_attempts" envconfig:"AI_PROVIDER_RETRY_ATTEMPTS" default:"3"`
-	RetryDelay     time.Duration `json:"retry_delay" envconfig:"AI_PROVIDER_RETRY_DELAY" default:"1s"`
-	MaxConcurrency int           `json:"max_concurrency" envconfig:"AI_PROVIDER_MAX_CONCURRENCY" default:"10"`
-	Model          string        `json:"model" envconfig:"AI_PROVIDER_MODEL" default:"gpt-4"`
-	Temperature    float64       `json:"temperature" envconfig:"AI_PROVIDER_TEMPERATURE" default:"0.7"`
+	APIKey string `json:"api_key" required:"true"`
 }
 
 func Load(filename string) (*Config, error) {
+	// Check if API key is set in environment
+	apiKey := os.Getenv("AI_PROVIDER_API_KEY")
+
 	// Read the configuration file
 	data, err := os.ReadFile(filename)
 	if err != nil {
+		if os.IsNotExist(err) {
+			// If file doesn't exist, return default config
+			cfg := &Config{
+				ServerPort: ":8080",
+				LogLevel:   "info",
+				AIProvider: AIProviderConfig{
+					APIKey: apiKey,
+				},
+			}
+			return cfg, nil
+		}
 		return nil, fmt.Errorf("reading config file: %w", err)
 	}
 
@@ -43,54 +50,30 @@ func Load(filename string) (*Config, error) {
 	if cfg.LogLevel == "" {
 		cfg.LogLevel = "info"
 	}
-
-	// Set defaults for AIProvider
-	setDefaultsAIProvider(&cfg)
+	if cfg.AIProvider.APIKey == "" {
+		cfg.AIProvider.APIKey = apiKey
+	}
 
 	return &cfg, nil
 }
 
-// setDefaultsAIProvider ensures the AIProvider config has appropriate default values
-func setDefaultsAIProvider(config *Config) {
-	if config.AIProvider.Model == "" {
-		config.AIProvider.Model = "gpt-4"
-	}
-
-	if config.AIProvider.Timeout == 0 {
-		config.AIProvider.Timeout = 30 * time.Second
-	}
-
-	if config.AIProvider.RetryAttempts == 0 {
-		config.AIProvider.RetryAttempts = 3
-	}
-
-	if config.AIProvider.RetryDelay == 0 {
-		config.AIProvider.RetryDelay = time.Second
-	}
-
-	if config.AIProvider.MaxConcurrency == 0 {
-		config.AIProvider.MaxConcurrency = 10
-	}
-
-	if config.AIProvider.Temperature == 0 {
-		config.AIProvider.Temperature = 0.7
-	}
+// Example usage of config.json:
+/*
+{
+    "ServerPort": ":8080",           // The port the server will listen on
+    "LogLevel": "info",              // Logging level (debug, info, warn, error)
+    "AIProvider": {
+        "api_key": ""                // AI Provider API key
+    }
 }
 
-// Example JSON configuration file (config.json)
-// const exampleConfig = `{
-//     "environment": "development",
-//     "aiprovider": {
-//         "api_key": "your-api-key-here",
-//         "model": "gpt-4",
-//         "timeout": "30s",
-//         "retry_attempts": 3,
-//         "retry_delay": "1s",
-//         "max_concurrency": 10,
-//         "request_rate_limit": 3000,
-//         "token_rate_limit": 250000,
-//         "max_tokens_per_req": 4000,
-//         "temperature": 0.7
-//     }
-//     // ... other config sections ...
-// }`
+Configuration can be provided via:
+1. config.json file
+2. Environment variables:
+   - AI_PROVIDER_API_KEY: Override the API key from config.json
+
+Default values:
+- ServerPort: ":8080"
+- LogLevel: "info"
+- AIProvider.api_key: Must be provided either in config.json or via environment variable
+*/
