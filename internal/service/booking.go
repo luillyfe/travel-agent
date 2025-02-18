@@ -1,42 +1,62 @@
 package service
 
 import (
-	"errors"
+	"context"
+	"fmt"
 	"time"
 	"travel-agent/internal/models"
+	"travel-agent/internal/service/ai"
 
 	"github.com/google/uuid"
 )
 
 type BookingService struct {
-	// Add dependencies here (e.g., AI service client, flight search API client)
+	aiInference *ai.InferenceEngine
 }
 
-func NewBookingService() *BookingService {
-	return &BookingService{}
+func NewBookingService(aiInference *ai.InferenceEngine) *BookingService {
+	return &BookingService{
+		aiInference: aiInference,
+	}
 }
 
 func (s *BookingService) ProcessBooking(req models.BookingRequest) (*models.BookingResponse, error) {
-	if req.Query == "" {
-		return nil, errors.New("query cannot be empty")
+	// TODO: Should I create a middleware for type casting (string) to time.Time?
+	// Cast req.Deadline (string) to time.Time
+	deadline, err := time.Parse(time.RFC3339, req.Deadline)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse deadline: %w", err)
 	}
 
-	// Create initial response
+	// Create AI request
+	aiReq := ai.TravelRequest{
+		Query:    req.Query,
+		Deadline: deadline,
+	}
+
+	// Process with AI
+	aiResp, err := s.aiInference.ProcessTravelRequest(context.Background(), aiReq)
+	if err != nil {
+		return nil, fmt.Errorf("AI processing failed: %w", err)
+	}
+
+	// Create booking response
 	response := &models.BookingResponse{
-		ID:        uuid.New().String(),
-		Status:    "pending",
-		Query:     req.Query,
-		Deadline:  time.Now(),
+		ID:     uuid.New().String(),
+		Status: "processing",
+		Query:  req.Query,
+		FlightDetails: &models.Flight{
+			DepartureCity: "User's City", // TODO: Extract from context
+			ArrivalCity:   aiResp.Destination,
+			DepartureTime: aiResp.DepartureDate,
+			ArrivalTime:   aiResp.ReturnDate,
+			// Other fields will be filled when actual flight is found
+		},
+		Deadline:  deadline,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
+		Message:   fmt.Sprintf("Searching for flights to %s", aiResp.Destination),
 	}
-
-	// TODO: Implement AI processing logic
-	// 1. Parse natural language query
-	// 2. Extract travel requirements
-	// 3. Search for flights
-	// 4. Monitor until deadline
-	// 5. Select best option
 
 	return response, nil
 }
