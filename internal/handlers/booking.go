@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"travel-agent/internal/models"
 	"travel-agent/internal/service"
@@ -27,9 +28,9 @@ func (h *BookingHandler) CreateBooking(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: Replaced with struct tags for validation enforcement when switching to Gin
-	if req.Query == "" || req.Deadline == "" {
-		http.Error(w, "Query and Deadline are required", http.StatusBadRequest)
+	// Validate request
+	if err := validateBookingRequest(req); err != nil {
+		respondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -43,6 +44,14 @@ func (h *BookingHandler) CreateBooking(w http.ResponseWriter, r *http.Request) {
 	// Return response
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
+}
+
+func respondWithError(w http.ResponseWriter, code int, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	json.NewEncoder(w).Encode(map[string]string{
+		"error": message,
+	})
 }
 
 func (h *BookingHandler) GetBooking(w http.ResponseWriter, r *http.Request) {
@@ -62,9 +71,19 @@ func (h *BookingHandler) GetBooking(w http.ResponseWriter, r *http.Request) {
 	// For now, return dummy response
 	response := &models.BookingResponse{
 		ID:     bookingID,
-		Status: "pending",
+		Status: models.StatusProcessing,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
+}
+
+func validateBookingRequest(req models.BookingRequest) error {
+	if req.Query == "" {
+		return fmt.Errorf("query cannot be empty")
+	}
+	if req.Deadline == "" {
+		return fmt.Errorf("deadline cannot be empty")
+	}
+	return nil
 }

@@ -10,11 +10,15 @@ import (
 	"github.com/google/uuid"
 )
 
-type BookingService struct {
-	aiInference *ai.InferenceEngine
+type AIInference interface {
+	ExtractParameters(ctx context.Context, strategy *ai.TravelExtractionStrategy, request ai.ExtractionRequest, decoder ai.DecodingStrategy[ai.TravelParameters]) (*ai.TravelParameters, error)
 }
 
-func NewBookingService(aiInference *ai.InferenceEngine) *BookingService {
+type BookingService struct {
+	aiInference AIInference
+}
+
+func NewBookingService(aiInference AIInference) *BookingService {
 	return &BookingService{
 		aiInference: aiInference,
 	}
@@ -22,6 +26,10 @@ func NewBookingService(aiInference *ai.InferenceEngine) *BookingService {
 
 // ProcessBooking orchestrates the booking flow
 func (s *BookingService) ProcessBooking(req models.BookingRequest) (*models.BookingResponse, error) {
+	if req.Query == "" {
+		return nil, fmt.Errorf("query cannot be empty")
+	}
+
 	// Parse and validate the request
 	deadline, err := s.parseDeadline(req.Deadline)
 	if err != nil {

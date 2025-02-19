@@ -2,86 +2,194 @@ package tests
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 	"travel-agent/internal/handlers"
 	"travel-agent/internal/models"
 	"travel-agent/internal/service"
 	"travel-agent/internal/service/ai"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 // Test data
 var (
 	validQuery    = "Book a flight for a 3-day trip to Paris"
-	validDeadline = "within 2 days"
+	validDeadline = time.Now().Add(48 * time.Hour).Format(time.RFC3339)
 )
 
+// MockInferenceEngine mocks the AI inference engine
+type MockInferenceEngine struct {
+	mock.Mock
+}
+
+func (m *MockInferenceEngine) ExtractParameters(
+	ctx context.Context,
+	strategy *ai.TravelExtractionStrategy,
+	request ai.ExtractionRequest,
+	decoder ai.DecodingStrategy[ai.TravelParameters],
+) (*ai.TravelParameters, error) {
+	args := m.Called(ctx, strategy, request, decoder)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*ai.TravelParameters), args.Error(1)
+}
+
 func TestBookingService_ProcessBooking(t *testing.T) {
-	// Create a mock inference engine for testing
-	mockEngine := &ai.InferenceEngine{}
+	// Helper function for creating time pointers
+	timePtr := func(t time.Time) *time.Time {
+		return &t
+	}
+
+	// Setup common test data
+	futureDate := time.Now().Add(24 * time.Hour)
+	validDeadline := futureDate.Format(time.RFC3339)
 
 	tests := []struct {
-		name    string
-		req     models.BookingRequest
-		wantErr bool
+		name          string
+		request       models.BookingRequest
+		mockParams    *ai.TravelParameters
+		mockError     error
+		expectedError bool
+		validateResp  func(*testing.T, *models.BookingResponse)
 	}{
 		{
-			name: "valid request",
-			req: models.BookingRequest{
-				Query:    validQuery,
+			name: "successful booking",
+			request: models.BookingRequest{
+				Query:    "I want to fly from New York to London",
 				Deadline: validDeadline,
 			},
-			wantErr: false,
+			mockParams: &ai.TravelParameters{
+				DepartureCity: "New York",
+				Destination:   "London",
+				DepartureDate: timePtr(futureDate),
+				ReturnDate:    timePtr(futureDate.Add(7 * 24 * time.Hour)),
+				Preferences: ai.Preferences{
+					BudgetRange: struct {
+						Min *float64 `json:"min"`
+						Max *float64 `json:"max"`
+					}{
+						Min: float64Ptr(1000),
+						Max: float64Ptr(2000),
+					},
+					TravelClass: "economy",
+				},
+			},
+			mockError:     nil,
+			expectedError: false,
+			validateResp: func(t *testing.T, resp *models.BookingResponse) {
+				assert.NotNil(t, resp)
+				assert.NotEmpty(t, resp.ID)
+				assert.Equal(t, models.StatusProcessing, resp.Status)
+				assert.Equal(t, "New York", resp.FlightDetails.DepartureCity)
+				assert.Equal(t, "London", resp.FlightDetails.ArrivalCity)
+			},
 		},
 		{
 			name: "empty query",
-			req: models.BookingRequest{
+			request: models.BookingRequest{
 				Query:    "",
 				Deadline: validDeadline,
 			},
-			wantErr: true,
+			mockParams:    nil,
+			mockError:     assert.AnError,
+			expectedError: true,
+			validateResp:  nil,
 		},
-		// TODO: Add test for deadline validation
-		// {
-		// 	name: "past deadline",
-		// 	req: models.BookingRequest{
-		// 		Query:    validQuery,
-		// 		Deadline: "yesterday",
-		// 	},
-		// 	wantErr: true,
-		// },
+		{
+			name: "invalid deadline format",
+			request: models.BookingRequest{
+				Query:    "Valid query",
+				Deadline: "invalid-date",
+			},
+			mockParams:    nil,
+			mockError:     nil,
+			expectedError: true,
+			validateResp:  nil,
+		},
+		{
+			name: "AI extraction failure",
+			request: models.BookingRequest{
+				Query:    "Valid query",
+				Deadline: validDeadline,
+			},
+			mockParams:    nil,
+			mockError:     assert.AnError,
+			expectedError: true,
+			validateResp:  nil,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := service.NewBookingService(mockEngine)
-			resp, err := svc.ProcessBooking(tt.req)
+			// Setup mock
+			mockEngine := new(MockInferenceEngine)
+			service := service.NewBookingService(mockEngine)
 
-			if (err != nil) != tt.wantErr {
-				t.Errorf("ProcessBooking() error = %v, wantErr %v", err, tt.wantErr)
-				return
+			// Setup mock expectations if needed
+			if tt.request.Query != "" && tt.request.Deadline == validDeadline {
+				mockEngine.On("ExtractParameters",
+					mock.Anything,
+					mock.AnythingOfType("*ai.TravelExtractionStrategy"),
+					mock.MatchedBy(func(req ai.ExtractionRequest) bool {
+						return req.Query == tt.request.Query
+					}),
+					mock.AnythingOfType("*ai.TravelDecodingStrategy"),
+				).Return(tt.mockParams, tt.mockError)
 			}
 
-			if !tt.wantErr && resp == nil {
-				t.Error("ProcessBooking() returned nil response for valid request")
-			}
+			// Execute test
+			resp, err := service.ProcessBooking(tt.request)
 
-			if !tt.wantErr {
-				if resp.ID == "" {
-					t.Error("ProcessBooking() returned empty ID")
+			// Verify results
+			if tt.expectedError {
+				assert.Error(t, err)
+				assert.Nil(t, resp)
+			} else {
+				assert.NoError(t, err)
+				if tt.validateResp != nil {
+					tt.validateResp(t, resp)
 				}
-				if resp.Status != "pending" {
-					t.Errorf("ProcessBooking() returned status %v, want pending", resp.Status)
-				}
 			}
+
+			// Verify mock expectations
+			mockEngine.AssertExpectations(t)
 		})
 	}
 }
 
+// Helper function for float64 pointers
+func float64Ptr(v float64) *float64 {
+	return &v
+}
+
 func TestBookingHandler_CreateBooking(t *testing.T) {
-	mockEngine := &ai.InferenceEngine{}
+	// Create mock inference engine
+	mockEngine := new(MockInferenceEngine)
+
+	// Setup mock expectations for valid requests
+	mockEngine.On("ExtractParameters",
+		mock.Anything,
+		mock.AnythingOfType("*ai.TravelExtractionStrategy"),
+		mock.MatchedBy(func(req ai.ExtractionRequest) bool {
+			return req.Query == validQuery
+		}),
+		mock.AnythingOfType("*ai.TravelDecodingStrategy"),
+	).Return(&ai.TravelParameters{
+		DepartureCity: "New York", // example city
+		Destination:   "Paris",
+		DepartureDate: timePtr(time.Now().Add(24 * time.Hour)),
+		ReturnDate:    timePtr(time.Now().Add(96 * time.Hour)),
+		Preferences:   ai.Preferences{},
+	}, nil)
 
 	tests := []struct {
 		name          string
@@ -99,12 +207,9 @@ func TestBookingHandler_CreateBooking(t *testing.T) {
 			wantStatus:   http.StatusOK,
 			wantResponse: true,
 			checkResponse: func(t *testing.T, resp *models.BookingResponse) {
-				if resp.ID == "" {
-					t.Error("Expected non-empty ID in response")
-				}
-				if resp.Status != "pending" {
-					t.Errorf("Expected status 'pending', got %s", resp.Status)
-				}
+				assert.NotEmpty(t, resp.ID, "Expected non-empty ID in response")
+				assert.Equal(t, models.StatusProcessing, resp.Status, "Expected status 'processing'")
+				assert.Equal(t, "Paris", resp.FlightDetails.ArrivalCity, "Expected arrival city to be Paris")
 			},
 		},
 		{
@@ -144,20 +249,30 @@ func TestBookingHandler_CreateBooking(t *testing.T) {
 			handler.CreateBooking(rr, req)
 
 			// Check status code
-			if rr.Code != tt.wantStatus {
-				t.Errorf("CreateBooking() status = %v, want %v", rr.Code, tt.wantStatus)
-			}
+			assert.Equal(t, tt.wantStatus, rr.Code, "Unexpected status code")
 
 			// Check response
 			if tt.wantResponse {
 				var resp models.BookingResponse
-				if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
-					t.Fatalf("Failed to decode response: %v", err)
+				err := json.NewDecoder(rr.Body).Decode(&resp)
+				assert.NoError(t, err, "Failed to decode response")
+
+				if tt.checkResponse != nil {
+					tt.checkResponse(t, &resp)
 				}
-				tt.checkResponse(t, &resp)
+			}
+
+			// Log response body if test fails
+			if t.Failed() {
+				t.Logf("Response Body: %s", rr.Body.String())
 			}
 		})
 	}
+}
+
+// Helper function for time pointers
+func timePtr(t time.Time) *time.Time {
+	return &t
 }
 
 func TestBookingHandler_GetBooking(t *testing.T) {
@@ -219,62 +334,116 @@ func TestBookingHandler_GetBooking(t *testing.T) {
 	}
 }
 
-// Integration test
 func TestBookingFlow(t *testing.T) {
-	mockEngine := &ai.InferenceEngine{}
+	// Create mock inference engine with expectations
+	mockEngine := new(MockInferenceEngine)
+
+	// Update mock to be more flexible with the request matching
+	mockEngine.On("ExtractParameters",
+		mock.Anything, // context
+		mock.AnythingOfType("*ai.TravelExtractionStrategy"),
+		mock.MatchedBy(func(req ai.ExtractionRequest) bool {
+			// More flexible matching - just ensure it's not empty
+			return req.Query != "" && !req.Deadline.IsZero()
+		}),
+		mock.AnythingOfType("*ai.TravelDecodingStrategy"),
+	).Return(&ai.TravelParameters{
+		DepartureCity: "Cúcuta",
+		Destination:   "Paris",
+		DepartureDate: timePtr(time.Date(2025, 3, 19, 5, 0, 0, 0, time.UTC)),
+		ReturnDate:    timePtr(time.Date(2025, 3, 22, 5, 0, 0, 0, time.UTC)),
+		Preferences: ai.Preferences{
+			BudgetRange: struct {
+				Min *float64 `json:"min"`
+				Max *float64 `json:"max"`
+			}{
+				Min: float64Ptr(1000),
+				Max: float64Ptr(2000),
+			},
+			TravelClass: "economy",
+			Activities:  []string{"sightseeing"},
+		},
+	}, nil)
 
 	// Create service and handler
 	svc := service.NewBookingService(mockEngine)
 	handler := handlers.NewBookingHandler(svc)
 
-	// 1. Create a booking
-	createReq := models.BookingRequest{
-		Query:    validQuery,
-		Deadline: validDeadline,
-	}
+	// Test flow
+	t.Run("complete booking flow", func(t *testing.T) {
+		// 1. Create a booking
+		createReq := models.BookingRequest{
+			Query:    "Book a flight for a 3-day trip to Paris, from Cúcuta starting 2025-03-19T05:00:00Z",
+			Deadline: validDeadline,
+		}
 
-	var body bytes.Buffer
-	if err := json.NewEncoder(&body).Encode(createReq); err != nil {
-		t.Fatalf("Failed to encode request body: %v", err)
-	}
+		var body bytes.Buffer
+		err := json.NewEncoder(&body).Encode(createReq)
+		require.NoError(t, err, "Failed to encode request body")
 
-	createReqHTTP := httptest.NewRequest(http.MethodPost, "/api/v1/bookings", &body)
-	createReqHTTP.Header.Set("Content-Type", "application/json")
-	createRR := httptest.NewRecorder()
+		createReqHTTP := httptest.NewRequest(http.MethodPost, "/api/v1/bookings", &body)
+		createReqHTTP.Header.Set("Content-Type", "application/json")
+		createRR := httptest.NewRecorder()
 
-	handler.CreateBooking(createRR, createReqHTTP)
+		handler.CreateBooking(createRR, createReqHTTP)
 
-	if createRR.Code != http.StatusOK {
-		t.Fatalf("CreateBooking() status = %v, want %v", createRR.Code, http.StatusOK)
-	}
+		require.Equal(t, http.StatusOK, createRR.Code, "Unexpected status code for create booking")
 
-	var createResp models.BookingResponse
-	if err := json.NewDecoder(createRR.Body).Decode(&createResp); err != nil {
-		t.Fatalf("Failed to decode create response: %v", err)
-	}
+		var createResp models.BookingResponse
+		err = json.NewDecoder(createRR.Body).Decode(&createResp)
+		require.NoError(t, err, "Failed to decode create response")
 
-	// 2. Get booking status
-	getReqHTTP := httptest.NewRequest(http.MethodGet, "/api/v1/bookings/status?id="+createResp.ID, nil)
-	getRR := httptest.NewRecorder()
+		// Verify create response
+		assert.NotEmpty(t, createResp.ID, "Booking ID should not be empty")
+		assert.Equal(t, models.StatusProcessing, createResp.Status, "Initial status should be processing")
+		assert.Equal(t, createReq.Query, createResp.Query, "Query should match request")
+		assert.NotNil(t, createResp.FlightDetails, "Flight details should not be nil")
+		assert.Equal(t, "Paris", createResp.FlightDetails.ArrivalCity, "Destination should be Paris")
 
-	handler.GetBooking(getRR, getReqHTTP)
+		// 2. Get booking status
+		getRR := httptest.NewRecorder()
+		getReqHTTP := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/bookings/status?id=%s", createResp.ID), nil)
 
-	if getRR.Code != http.StatusOK {
-		t.Fatalf("GetBooking() status = %v, want %v", getRR.Code, http.StatusOK)
-	}
+		handler.GetBooking(getRR, getReqHTTP)
 
-	var getResp models.BookingResponse
-	if err := json.NewDecoder(getRR.Body).Decode(&getResp); err != nil {
-		t.Fatalf("Failed to decode get response: %v", err)
-	}
+		require.Equal(t, http.StatusOK, getRR.Code, "Unexpected status code for get booking")
 
-	// Verify booking details match
-	if getResp.ID != createResp.ID {
-		t.Errorf("Booking ID mismatch: got %v, want %v", getResp.ID, createResp.ID)
-	}
+		var getResp models.BookingResponse
+		err = json.NewDecoder(getRR.Body).Decode(&getResp)
+		require.NoError(t, err, "Failed to decode get response")
 
-	// TODO: Add more verifications
-	// if getResp.Query != createReq.Query {
-	// 	t.Errorf("Query mismatch: got %v, want %v", getResp.Query, createReq.Query)
-	// }
+		// Verify get response matches create response
+		assert.Equal(t, createResp.ID, getResp.ID, "Booking ID should match")
+		assert.Equal(t, createResp.Status, getResp.Status, "Status should match")
+	})
+
+	// TODO: Test non-existent booking cases
+
+	t.Run("create booking with invalid request", func(t *testing.T) {
+		invalidReq := models.BookingRequest{
+			Query:    "", // Empty query
+			Deadline: validDeadline,
+		}
+
+		var body bytes.Buffer
+		err := json.NewEncoder(&body).Encode(invalidReq)
+		require.NoError(t, err, "Failed to encode invalid request")
+
+		reqHTTP := httptest.NewRequest(http.MethodPost, "/api/v1/bookings", &body)
+		reqHTTP.Header.Set("Content-Type", "application/json")
+		rr := httptest.NewRecorder()
+
+		handler.CreateBooking(rr, reqHTTP)
+
+		assert.Equal(t, http.StatusBadRequest, rr.Code, "Should return bad request for invalid booking")
+
+		// Optionally verify error message
+		var errorResp map[string]string
+		err = json.NewDecoder(rr.Body).Decode(&errorResp)
+		require.NoError(t, err, "Failed to decode error response")
+		assert.Contains(t, errorResp["error"], "query cannot be empty", "Should return appropriate error message")
+	})
+
+	// Verify all mock expectations were met
+	mockEngine.AssertExpectations(t)
 }
