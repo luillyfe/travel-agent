@@ -20,51 +20,83 @@ func NewBookingService(aiInference *ai.InferenceEngine) *BookingService {
 	}
 }
 
+// ProcessBooking orchestrates the booking flow
 func (s *BookingService) ProcessBooking(req models.BookingRequest) (*models.BookingResponse, error) {
-	// TODO: Should I create a middleware for type casting (string) to time.Time?
-	// Cast req.Deadline (string) to time.Time
-	deadline, err := time.Parse(time.RFC3339, req.Deadline)
+	// Parse and validate the request
+	deadline, err := s.parseDeadline(req.Deadline)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse deadline: %w", err)
+		return nil, fmt.Errorf("invalid request: %w", err)
 	}
 
-	// Create AI request
-	aiReq := ai.TravelRequest{
-		Query:    req.Query,
-		Deadline: deadline,
-	}
-
-	// Process with AI
-	aiResp, err := s.aiInference.ProcessTravelRequest(context.Background(), aiReq)
+	// Extract travel parameters
+	travelParams, err := s.extractTravelParameters(req.Query, deadline)
 	if err != nil {
-		return nil, fmt.Errorf("AI processing failed: %w", err)
+		return nil, fmt.Errorf("parameter extraction failed: %w", err)
 	}
 
 	// Create booking response
-	response := &models.BookingResponse{
-		ID:     uuid.New().String(),
-		Status: "processing",
-		Query:  req.Query,
-		FlightDetails: &models.Flight{
-			DepartureCity: "User's City", // TODO: Extract from context
-			ArrivalCity:   aiResp.Destination,
-			DepartureTime: mustParseTime(aiResp.DepartureDate),
-			ArrivalTime:   mustParseTime(aiResp.ReturnDate),
-			// Other fields will be filled when actual flight is found
-		},
-		Deadline:  deadline,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-		Message:   fmt.Sprintf("Searching for flights to %s", aiResp.Destination),
+	response, err := s.createBookingResponse(req, travelParams, deadline)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create booking response: %w", err)
 	}
 
 	return response, nil
 }
 
-func mustParseTime(timeStr string) time.Time {
-	t, err := time.Parse(time.RFC3339, timeStr)
+// parseDeadline handles deadline string to time.Time conversion
+func (s *BookingService) parseDeadline(deadlineStr string) (time.Time, error) {
+	deadline, err := time.Parse(time.RFC3339, deadlineStr)
 	if err != nil {
-		panic(fmt.Sprintf("invalid time format: %v", err))
+		return time.Time{}, fmt.Errorf("invalid deadline format: %w", err)
 	}
-	return t
+	return deadline, nil
+}
+
+// extractTravelParameters handles the AI parameter extraction
+func (s *BookingService) extractTravelParameters(query string, deadline time.Time) (*ai.TravelParameters, error) {
+	extractionStrategy := &ai.TravelExtractionStrategy{}
+	decodingStrategy := &ai.TravelDecodingStrategy{}
+
+	aiReq := ai.ExtractionRequest{
+		Query:    query,
+		Deadline: deadline,
+	}
+
+	params, err := s.aiInference.ExtractParameters(
+		context.Background(),
+		extractionStrategy,
+		aiReq,
+		decodingStrategy,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("AI extraction failed: %w", err)
+	}
+
+	return params, nil
+}
+
+// createBookingResponse creates the booking response from extracted parameters
+func (s *BookingService) createBookingResponse(
+	req models.BookingRequest,
+	params *ai.TravelParameters,
+	deadline time.Time,
+) (*models.BookingResponse, error) {
+	now := time.Now()
+	response := &models.BookingResponse{
+		ID:     uuid.New().String(),
+		Status: models.StatusProcessing,
+		Query:  req.Query,
+		FlightDetails: &models.Flight{
+			DepartureCity: params.DepartureCity,
+			ArrivalCity:   params.Destination,
+			DepartureTime: *params.DepartureDate,
+			ArrivalTime:   *params.ReturnDate,
+		},
+		Deadline:  deadline,
+		CreatedAt: now,
+		UpdatedAt: now,
+		Message:   fmt.Sprintf("Searching for flights to %s", params.Destination),
+	}
+
+	return response, nil
 }

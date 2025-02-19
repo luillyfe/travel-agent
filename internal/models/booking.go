@@ -8,14 +8,14 @@ type BookingRequest struct {
 }
 
 type BookingResponse struct {
-	ID            string    `json:"id"`               // Unique booking request ID
-	Status        string    `json:"status"`           // Status of the booking (pending, completed, failed)
-	Query         string    `json:"query"`            // Original query
-	Deadline      time.Time `json:"deadline"`         // Original deadline
-	FlightDetails *Flight   `json:"flight,omitempty"` // Flight details if found
-	Message       string    `json:"message"`          // Additional information or error message
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
+	ID            string        `json:"id"`               // Unique booking request ID
+	Status        BookingStatus `json:"status"`           // Status of the booking (pending, completed, failed)
+	Query         string        `json:"query"`            // Original query
+	Deadline      time.Time     `json:"deadline"`         // Original deadline
+	FlightDetails *Flight       `json:"flight,omitempty"` // Flight details if found
+	Message       string        `json:"message"`          // Additional information or error message
+	CreatedAt     time.Time     `json:"created_at"`
+	UpdatedAt     time.Time     `json:"updated_at"`
 }
 
 type Flight struct {
@@ -28,3 +28,11 @@ type Flight struct {
 	Price         float64   `json:"price"`
 	Currency      string    `json:"currency"`
 }
+
+type BookingStatus string
+
+const (
+	StatusProcessing BookingStatus = "processing"
+	StatusConfirmed  BookingStatus = "confirmed"
+	StatusFailed     BookingStatus = "failed"
+)

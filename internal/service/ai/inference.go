@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+	"travel-agent/pkg/utils"
 )
 
 const (
@@ -21,18 +22,9 @@ type InferenceEngine struct {
 	httpClient *http.Client
 }
 
-type TravelRequest struct {
-	Query    string
-	Deadline time.Time
-}
-
-type TravelResponse struct {
-	Destination    string   `json:"destination"`
-	DepartureDate  string   `json:"departure_date"`
-	ReturnDate     string   `json:"return_date"`
-	PreferredPrice float64  `json:"preferred_price"`
-	Requirements   []string `json:"requirements"`
-	Error          string   `json:"error,omitempty"`
+// ResponseFormat the format that the response must adhere to
+type ResponseFormat struct {
+	Type string `json:"type"`
 }
 
 func NewInferenceEngine(apiKey string) (*InferenceEngine, error) {
@@ -49,8 +41,9 @@ func NewInferenceEngine(apiKey string) (*InferenceEngine, error) {
 }
 
 type AIProviderRequest struct {
-	Model    string          `json:"model"`
-	Messages []AIProviderMsg `json:"messages"`
+	Model          string          `json:"model"`
+	Messages       []AIProviderMsg `json:"messages"`
+	ResponseFormat ResponseFormat  `json:"response_format"`
 }
 
 type AIProviderMsg struct {
@@ -85,24 +78,18 @@ type AIProviderResponse struct {
 	} `json:"error"`
 }
 
-func (p *InferenceEngine) ProcessTravelRequest(ctx context.Context, req TravelRequest) (*TravelResponse, error) {
-	// Construct the system prompt
-	systemPrompt := `You are an AI travel assistant. Analyze the travel request and extract key information.
-Output must be a single valid JSON string with no markdown formatting, no code blocks, and no backticks.
-The JSON must have this exact structure:
-{
-    "destination": "city name",
-    "departure_date": "YYYY-MM-DDTHH:MM:SSZ",
-    "return_date": "YYYY-MM-DDTHH:MM:SSZ",
-    "preferred_price": number,
-    "requirements": ["requirement1", "requirement2"]
+type PromptStrategy[T any] interface {
+	GetSystemPrompt() string
+	GetUserPrompt(req T) string
 }
-Do not include any explanation or additional text, only return the JSON object.`
 
-	// Construct user prompt with query and deadline
-	userPrompt := fmt.Sprintf("Travel request: %s\nBooking deadline: %s",
-		req.Query,
-		req.Deadline.Format(time.RFC3339))
+type DecodingStrategy[T any] interface {
+	DecodeResponse(content string) (*T, error)
+}
+
+func (p *InferenceEngine) ExtractParameters(ctx context.Context, strategy *TravelExtractionStrategy, request ExtractionRequest, decodingStrategy DecodingStrategy[TravelParameters]) (*TravelParameters, error) {
+	systemPrompt := strategy.GetSystemPrompt()
+	userPrompt := strategy.GetUserPrompt(request)
 
 	// Prepare AIProvider request
 	AIProviderReq := AIProviderRequest{
@@ -111,52 +98,55 @@ Do not include any explanation or additional text, only return the JSON object.`
 			{Role: "system", Content: systemPrompt},
 			{Role: "user", Content: userPrompt},
 		},
+		ResponseFormat: ResponseFormat{
+			Type: "json_object",
+		},
 	}
 
-	// Marshal request body
-	reqBody, err := json.Marshal(AIProviderReq)
+	// Make HTTP request
+	resp, err := p.makeRequest(ctx, AIProviderReq)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
-	}
-
-	// Create HTTP request
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", AIProviderEndpoint, bytes.NewBuffer(reqBody))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	// Set headers
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Authorization", "Bearer "+p.apiKey)
-
-	// Make request
-	resp, err := p.httpClient.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("failed to make request: %w", err)
+		return nil, err
 	}
 	defer resp.Body.Close()
 
-	// Parse response
+	// Log response details
+	utils.LogResponseWithoutConsuming(resp)
+
+	// Parse the AI provider response
 	var AIProviderResp AIProviderResponse
 	if err := json.NewDecoder(resp.Body).Decode(&AIProviderResp); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	// Check for AIProvider error
+	// Check for AI provider errors
 	if AIProviderResp.Error != nil {
 		return nil, fmt.Errorf("AIProvider error: %s", AIProviderResp.Error.Message)
 	}
 
-	// Check if we have any choices
+	// Ensure we have a response
 	if len(AIProviderResp.Choices) == 0 {
 		return nil, errors.New("no response from AIProvider")
 	}
 
-	// Parse the AI response into our TravelResponse struct
-	var travelResp TravelResponse
-	if err := json.Unmarshal([]byte(AIProviderResp.Choices[0].Message.Content), &travelResp); err != nil {
-		return nil, fmt.Errorf("failed to parse AI response: %w", err)
+	// Use decoding strategy to parse the response
+	return decodingStrategy.DecodeResponse(AIProviderResp.Choices[0].Message.Content)
+}
+
+// Helper method for making HTTP requests
+func (p *InferenceEngine) makeRequest(ctx context.Context, AIProviderReq AIProviderRequest) (*http.Response, error) {
+	reqBody, err := json.Marshal(AIProviderReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	return &travelResp, nil
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", AIProviderEndpoint, bytes.NewBuffer(reqBody))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", "Bearer "+p.apiKey)
+
+	return p.httpClient.Do(httpReq)
 }
