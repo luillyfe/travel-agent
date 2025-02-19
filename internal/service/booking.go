@@ -51,6 +51,7 @@ func (s *BookingService) ProcessBooking(req models.BookingRequest) (*models.Book
 	return response, nil
 }
 
+// TODO: parseDeadline needs to accept NL deadlines like "tomorrow at 5pm".
 // parseDeadline handles deadline string to time.Time conversion
 func (s *BookingService) parseDeadline(deadlineStr string) (time.Time, error) {
 	deadline, err := time.Parse(time.RFC3339, deadlineStr)
