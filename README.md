@@ -10,19 +10,28 @@ A RESTful API service that processes travel booking requests using AI to find op
 │   └── app/
 │       └── main.go           # Application entry point
 ├── internal/
-│   ├── models/
-│   │   └── booking.go        # Data models and types
-│   ├── service/
-│   │   └── booking.go        # Core booking service logic
-│   └── handlers/
-│       └── booking.go        # HTTP request handlers
+│   ├── config/              # Configuration handling
+│   │   └── config.go
+│   ├── handlers/            # HTTP request handlers
+│   │   └── booking.go
+│   ├── models/              # Data models
+│   │   └── booking.go
+│   ├── server/             # Server implementation
+│   │   └── server.go
+│   └── service/            # Business logic
+│       ├── ai/             # AI inference services
+│       │   ├── inference.go
+│       │   └── travelParameterExtraction.go
+│       └── booking.go
 ├── pkg/
-│   └── utils/               # Shared utilities
-├── api/
-│   └── openapi.yaml         # API specifications
-├── tests/
-│   └── booking_test.go      # Integration and unit tests
-└── go.mod                   # Module dependencies
+│   └── utils/              # Shared utilities
+│       └── utils.go
+├── tests/                  # Test suites
+│   ├── booking_test.go
+│   ├── inference_test.go
+│   └── server_test.go
+└── api/
+    └── openapi.yaml        # API specifications
 ```
 
 ## Core Components
@@ -35,16 +44,15 @@ A RESTful API service that processes travel booking requests using AI to find op
 
 ### Services
 
-- `BookingService`: Handles the core business logic for processing booking requests
-  - Natural language processing
-  - Flight search and optimization
-  - Deadline-based monitoring
+- `BookingService`: Core business logic for processing booking requests
+- `InferenceEngine`: Handles AI parameter extraction from natural language
+- `TravelParameterExtraction`: Processes travel-specific parameters
 
-### Handlers
+### Configuration
 
-- `BookingHandler`: HTTP request handling for booking endpoints
-  - Create new bookings
-  - Check booking status
+- Environment-based configuration with JSON file support
+- API keys and server settings management
+- Default configurations with override capability
 
 ## API Endpoints
 
@@ -58,8 +66,8 @@ Request body:
 
 ```json
 {
-  "query": "Book a flight for a 3-day trip to Paris",
-  "deadline": "within 2 days"
+  "query": "Book a flight from Cúcuta to Paris on March 10th for a 3-day trip",
+  "deadline": "2025-03-18T15:04:05Z"
 }
 ```
 
@@ -68,11 +76,21 @@ Response:
 ```json
 {
   "id": "123e4567-e89b-12d3-a456-426614174000",
-  "status": "pending",
-  "query": "Book a flight for a 3-day trip to Paris",
-  "deadline": "2024-02-18T15:04:05Z",
-  "created_at": "2024-02-16T15:04:05Z",
-  "updated_at": "2024-02-16T15:04:05Z",
+  "status": "processing",
+  "query": "Book a flight from Cúcuta to Paris on March 10th for a 3-day trip",
+  "deadline": "2025-03-18T15:04:05Z",
+  "flight": {
+    "airline": "",
+    "flight_number": "",
+    "departure_city": "Cúcuta",
+    "arrival_city": "Paris",
+    "departure_time": "2025-03-01T10:00:00Z",
+    "arrival_time": "2025-03-01T22:00:00Z",
+    "price": 0,
+    "currency": ""
+  },
+  "created_at": "2025-02-16T15:04:05Z",
+  "updated_at": "2025-02-16T15:04:05Z",
   "message": "Processing your request"
 }
 ```
@@ -83,37 +101,22 @@ Response:
 GET /api/v1/bookings/status?id={booking_id}
 ```
 
-Response:
-
-```json
-{
-  "id": "123e4567-e89b-12d3-a456-426614174000",
-  "status": "completed",
-  "flight": {
-    "airline": "Air France",
-    "flight_number": "AF1234",
-    "departure_city": "New York",
-    "arrival_city": "Paris",
-    "departure_time": "2024-03-01T10:00:00Z",
-    "arrival_time": "2024-03-01T22:00:00Z",
-    "price": 750.0,
-    "currency": "USD"
-  }
-}
-```
-
 ## Getting Started
 
 1. Clone the repository
-2. Install dependencies:
+2. Set up configuration:
+   ```bash
+   # Set environment variable for AI provider
+   export AI_PROVIDER_API_KEY=your_api_key
+   ```
+3. Install dependencies:
    ```bash
    go mod tidy
    ```
-3. Run the server:
+4. Run the server:
    ```bash
    go run cmd/app/main.go
    ```
-4. The server will start on port 8080
 
 ## Testing
 
@@ -123,25 +126,29 @@ Run the test suite:
 go test ./...
 ```
 
-## Development Status
+## Implementation Status
 
-Current Implementation:
+Completed:
 
-- ✅ Basic API structure
+- ✅ Basic API structure and routing
 - ✅ Request/Response models
-- ✅ Booking service framework
-- ✅ HTTP handlers
+- ✅ Configuration management
+- ✅ AI integration framework
+- ✅ Booking service implementation
+- ✅ Test suite foundation
+- ✅ Parameter extraction from natural language
+- ✅ Health check endpoint
 
-Pending Implementation:
+Pending:
 
-- ⏳ AI natural language processing
 - ⏳ Flight search integration
 - ⏳ Database persistence
-- ⏳ Implement booking status retrieval
+- ⏳ Complete booking status retrieval
 - ⏳ Authentication/Authorization
-- ⏳ Request validation
-- ⏳ Error handling middleware
-- ⏳ Logging and monitoring
+- ⏳ Advanced error handling middleware
+- ⏳ Metrics and monitoring
+- ⏳ Rate limiting
+- ⏳ Caching layer
 
 ## Contributing
 

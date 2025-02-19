@@ -1,0 +1,88 @@
+# Go specific
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work
+
+#
+.files
+
+# Binary folder
+bin/
+build/
+
+# Go workspace file
+go.work
+
+# Environment files
+.env
+.env.local
+.env.*
+config.json
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+*.sublime-workspace
+*.sublime-project
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+*.log
+
+# Dependencies
+vendor/
+
+# Test coverage
+coverage.txt
+coverage.html
+
+# Debug files
+debug
+
+# Certificate files
+*.pem
+*.key
+*.crt
+
+# Local development files
+local/
+dev/
+
+# System Files
+.DS_Store
+Thumbs.db
+
+# Compiled Object files, Static and Dynamic libs
+*.o
+*.a
+
+# Output of the go coverage tool
+*.out
+
+# Project-specific build outputs
+dist/
+release/
+
+# Air live reload
+tmp/
+.air.toml
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Kubernetes secrets
+*secret*.yaml
+*secrets*.yaml
