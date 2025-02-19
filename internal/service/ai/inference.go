@@ -11,10 +11,11 @@ import (
 	"travel-agent/pkg/utils"
 )
 
+var AIProviderEndpoint = "https://api.mistral.ai/v1/chat/completions"
+
 const (
-	AIProviderEndpoint = "https://api.mistral.ai/v1/chat/completions"
-	model              = "mistral-large-latest"
-	timeout            = 30 * time.Second
+	model   = "mistral-large-latest"
+	timeout = 30 * time.Second
 )
 
 type InferenceEngine struct {
