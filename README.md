@@ -66,8 +66,8 @@ Request body:
 
 ```json
 {
-  "query": "Book a flight for a 3-day trip to Paris",
-  "deadline": "2024-02-18T15:04:05Z"
+  "query": "Book a flight from Cúcuta to Paris on March 10th for a 3-day trip",
+  "deadline": "2025-03-18T15:04:05Z"
 }
 ```
 
@@ -77,20 +77,20 @@ Response:
 {
   "id": "123e4567-e89b-12d3-a456-426614174000",
   "status": "processing",
-  "query": "Book a flight for a 3-day trip to Paris",
-  "deadline": "2024-02-18T15:04:05Z",
+  "query": "Book a flight from Cúcuta to Paris on March 10th for a 3-day trip",
+  "deadline": "2025-03-18T15:04:05Z",
   "flight": {
     "airline": "",
     "flight_number": "",
-    "departure_city": "New York",
+    "departure_city": "Cúcuta",
     "arrival_city": "Paris",
-    "departure_time": "2024-03-01T10:00:00Z",
-    "arrival_time": "2024-03-01T22:00:00Z",
+    "departure_time": "2025-03-01T10:00:00Z",
+    "arrival_time": "2025-03-01T22:00:00Z",
     "price": 0,
     "currency": ""
   },
-  "created_at": "2024-02-16T15:04:05Z",
-  "updated_at": "2024-02-16T15:04:05Z",
+  "created_at": "2025-02-16T15:04:05Z",
+  "updated_at": "2025-02-16T15:04:05Z",
   "message": "Processing your request"
 }
 ```
