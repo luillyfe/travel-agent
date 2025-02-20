@@ -79,21 +79,28 @@ type AIProviderResponse struct {
 	} `json:"error"`
 }
 
-type PromptStrategy[T any] interface {
+type PromptStrategy[R any] interface {
 	GetSystemPrompt() string
-	GetUserPrompt(req T) string
+	GetUserPrompt(req R) string
 }
 
 type DecodingStrategy[T any] interface {
 	DecodeResponse(content string) (*T, error)
 }
 
-func (p *InferenceEngine) ExtractParameters(ctx context.Context, strategy *TravelExtractionStrategy, request ExtractionRequest, decodingStrategy DecodingStrategy[TravelParameters]) (*TravelParameters, error) {
-	systemPrompt := strategy.GetSystemPrompt()
-	userPrompt := strategy.GetUserPrompt(request)
+func ProcessRequest[T, R any](
+	ctx context.Context,
+	engine *InferenceEngine,
+	promptStrategy PromptStrategy[R],
+	request R,
+	decodingStrategy DecodingStrategy[T],
+) (*T, error) {
+	// Get prompts
+	systemPrompt := promptStrategy.GetSystemPrompt()
+	userPrompt := promptStrategy.GetUserPrompt(request)
 
-	// Prepare AIProvider request
-	AIProviderReq := AIProviderRequest{
+	// Prepare request
+	aiReq := AIProviderRequest{
 		Model: model,
 		Messages: []AIProviderMsg{
 			{Role: "system", Content: systemPrompt},
@@ -104,34 +111,34 @@ func (p *InferenceEngine) ExtractParameters(ctx context.Context, strategy *Trave
 		},
 	}
 
-	// Make HTTP request
-	resp, err := p.makeRequest(ctx, AIProviderReq)
+	// Make request
+	resp, err := engine.makeRequest(ctx, aiReq)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 
-	// Log response details
+	// Log response if enabled
 	utils.LogResponseWithoutConsuming(resp)
 
-	// Parse the AI provider response
-	var AIProviderResp AIProviderResponse
-	if err := json.NewDecoder(resp.Body).Decode(&AIProviderResp); err != nil {
+	// Parse response
+	var aiResp AIProviderResponse
+	if err := json.NewDecoder(resp.Body).Decode(&aiResp); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	// Check for AI provider errors
-	if AIProviderResp.Error != nil {
-		return nil, fmt.Errorf("AIProvider error: %s", AIProviderResp.Error.Message)
+	// Check for errors
+	if aiResp.Error != nil {
+		return nil, fmt.Errorf("AI provider error: %s", aiResp.Error.Message)
 	}
 
 	// Ensure we have a response
-	if len(AIProviderResp.Choices) == 0 {
-		return nil, errors.New("no response from AIProvider")
+	if len(aiResp.Choices) == 0 {
+		return nil, errors.New("no response from AI provider")
 	}
 
-	// Use decoding strategy to parse the response
-	return decodingStrategy.DecodeResponse(AIProviderResp.Choices[0].Message.Content)
+	// Decode the response
+	return decodingStrategy.DecodeResponse(aiResp.Choices[0].Message.Content)
 }
 
 // Helper method for making HTTP requests

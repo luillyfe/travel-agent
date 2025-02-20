@@ -31,14 +31,14 @@ type Preferences struct {
 	DietaryRestrictions []string `json:"dietary_restrictions"`
 }
 
-// TravelExtractionStrategy handles the extraction of travel parameters from natural language
-type TravelExtractionStrategy struct{}
+// ExtractionPromptStrategy handles the extraction of travel parameters from natural language
+type ExtractionPromptStrategy struct{}
 
-// Make TravelExtractionStrategy implement PromptStrategy[ExtractionRequest]
-var _ PromptStrategy[ExtractionRequest] = (*TravelExtractionStrategy)(nil) // Type assertion for interface compliance
+// Make ExtractionPromptStrategy implement PromptStrategy[ExtractionRequest]
+var _ PromptStrategy[ExtractionRequest] = (*ExtractionPromptStrategy)(nil) // Type assertion for interface compliance
 
 // GetSystemPrompt returns the system prompt for parameter extraction
-func (s *TravelExtractionStrategy) GetSystemPrompt() string {
+func (s *ExtractionPromptStrategy) GetSystemPrompt() string {
 	return `You are an AI travel assistant specialized in extracting structured travel information from natural language requests.
 
 Output must be a valid JSON object with this exact structure:
@@ -71,7 +71,7 @@ Return only the JSON object, no additional text.`
 }
 
 // GetUserPrompt formats the user prompt with the request details
-func (s *TravelExtractionStrategy) GetUserPrompt(req ExtractionRequest) string {
+func (s *ExtractionPromptStrategy) GetUserPrompt(req ExtractionRequest) string {
 	return fmt.Sprintf(`Extract travel parameters from this request:
 
 REQUEST TEXT:
@@ -91,8 +91,11 @@ Format as specified JSON structure.`,
 		req.Deadline.Format(time.RFC3339))
 }
 
+// ExtractionDecodingStrategy implements DecodingStrategy for travel parameters
+type ExtractionDecodingStrategy struct{}
+
 // validate checks if the required fields are present and valid
-func (d *TravelDecodingStrategy) validate(params *TravelParameters) error {
+func (d *ExtractionDecodingStrategy) validate(params *TravelParameters) error {
 	if params.DepartureCity == "" {
 		return fmt.Errorf("departure city is required")
 	}
@@ -123,10 +126,7 @@ func (d *TravelDecodingStrategy) validate(params *TravelParameters) error {
 	return nil
 }
 
-// TravelDecodingStrategy implements DecodingStrategy for travel parameters
-type TravelDecodingStrategy struct{}
-
-func (d *TravelDecodingStrategy) DecodeResponse(content string) (*TravelParameters, error) {
+func (d *ExtractionDecodingStrategy) DecodeResponse(content string) (*TravelParameters, error) {
 	// Parse the JSON content into TravelParameters
 	var params TravelParameters
 	if err := json.Unmarshal([]byte(content), &params); err != nil {

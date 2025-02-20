@@ -17,13 +17,13 @@ func main() {
 	}
 
 	// Initialize AI inference module
-	aiInference, err := ai.NewInferenceEngine(cfg.AIProvider.APIKey)
+	engine, err := ai.NewInferenceEngine(cfg.AIProvider.APIKey)
 	if err != nil {
 		log.Fatalf("Failed to initialize AI processor: %v", err)
 	}
 
 	// Initialize services
-	bookingService := service.NewBookingService(aiInference)
+	bookingService := service.NewBookingService(engine)
 	bookingHandler := handlers.NewBookingHandler(bookingService)
 
 	// Setup routes
