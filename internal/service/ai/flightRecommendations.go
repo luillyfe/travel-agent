@@ -5,39 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+	"travel-agent/internal/models"
 )
-
-// FlightRecommendationRequest represents the input for flight recommendations
-type FlightRecommendationRequest struct {
-	DepartureCity  string    `json:"departure_city"`
-	Destination    string    `json:"destination"`
-	DepartureDate  time.Time `json:"departure_date"`
-	ReturnDate     time.Time `json:"return_date"`
-	Passengers     int       `json:"passengers"`
-	MaxBudget      float64   `json:"max_budget,omitempty"`
-	PreferredClass string    `json:"preferred_class,omitempty"`
-}
-
-// FlightRecommendation represents the structured output
-type FlightRecommendation struct {
-	Recommendations []Flight `json:"recommendations"`
-	Reasoning       string   `json:"reasoning"`
-}
-
-type Flight struct {
-	Airline             string    `json:"airline"`
-	FlightNumber        string    `json:"flight_number"`
-	DepartureCity       string    `json:"departure_city"`
-	DepartureTime       time.Time `json:"departure_time"`
-	ArrivalCity         string    `json:"arrival_city"`
-	ArrivalTime         time.Time `json:"arrival_time"`
-	Class               string    `json:"class"`
-	EstimatedPrice      float64   `json:"estimated_price"`
-	LayoverCount        int       `json:"layover_count"`
-	TotalDuration       string    `json:"total_duration"`
-	AvailableSeats      int       `json:"available_seats"`
-	RecommendationScore float64   `json:"recommendation_score"`
-}
 
 // FlightRecommendationStrategy implements the PromptStrategy interface
 type FlightRecommendationStrategy struct{}
@@ -78,7 +47,7 @@ Recommendation Rules:
 Return only the JSON object, no additional text or explanation.`
 }
 
-func (s *FlightRecommendationStrategy) GetUserPrompt(req FlightRecommendationRequest) string {
+func (s *FlightRecommendationStrategy) GetUserPrompt(req models.FlightRecommendationRequest) string {
 	return fmt.Sprintf(`Analyze this flight request and provide recommendations:
 
 TRAVEL DETAILS:
@@ -115,8 +84,8 @@ Format recommendations according to the specified JSON structure.`,
 // FlightRecommendationDecoder implements the DecodingStrategy interface
 type FlightRecommendationDecoder struct{}
 
-func (d *FlightRecommendationDecoder) DecodeResponse(content string) (*FlightRecommendation, error) {
-	var recommendation FlightRecommendation
+func (d *FlightRecommendationDecoder) DecodeResponse(content string) (*models.FlightRecommendation, error) {
+	var recommendation models.FlightRecommendation
 	if err := json.Unmarshal([]byte(content), &recommendation); err != nil {
 		return nil, fmt.Errorf("failed to decode flight recommendations: %w", err)
 	}
@@ -129,7 +98,7 @@ func (d *FlightRecommendationDecoder) DecodeResponse(content string) (*FlightRec
 	return &recommendation, nil
 }
 
-func (d *FlightRecommendationDecoder) validate(rec *FlightRecommendation) error {
+func (d *FlightRecommendationDecoder) validate(rec *models.FlightRecommendation) error {
 	if len(rec.Recommendations) == 0 {
 		return errors.New("no flight recommendations provided")
 	}
@@ -141,7 +110,7 @@ func (d *FlightRecommendationDecoder) validate(rec *FlightRecommendation) error 
 		if flight.FlightNumber == "" {
 			return fmt.Errorf("missing flight number for recommendation %d", i+1)
 		}
-		if flight.EstimatedPrice <= 0 {
+		if flight.Price <= 0 {
 			return fmt.Errorf("invalid price for recommendation %d", i+1)
 		}
 		// Add more validation as needed

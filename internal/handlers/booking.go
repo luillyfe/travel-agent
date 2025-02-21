@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -35,7 +36,7 @@ func (h *BookingHandler) CreateBooking(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Process the booking request
-	response, err := h.bookingService.ProcessBooking(req)
+	response, err := h.bookingService.ProcessBooking(context.Background(), req)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -82,8 +83,9 @@ func validateBookingRequest(req models.BookingRequest) error {
 	if req.Query == "" {
 		return fmt.Errorf("query cannot be empty")
 	}
-	if req.Deadline == "" {
-		return fmt.Errorf("deadline cannot be empty")
+	if req.Deadline.IsZero() {
+		return fmt.Errorf("deadline is required")
 	}
+
 	return nil
 }

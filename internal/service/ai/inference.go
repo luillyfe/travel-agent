@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+	"travel-agent/internal/models"
 	"travel-agent/pkg/utils"
 )
 
@@ -18,7 +19,7 @@ const (
 	timeout = 30 * time.Second
 )
 
-type InferenceEngine struct {
+type InferenceEngine[T models.TravelOutput, R models.TravelInput] struct {
 	apiKey     string
 	httpClient *http.Client
 }
@@ -28,12 +29,12 @@ type ResponseFormat struct {
 	Type string `json:"type"`
 }
 
-func NewInferenceEngine(apiKey string) (*InferenceEngine, error) {
+func NewInferenceEngine[T models.TravelOutput, R models.TravelInput](apiKey string) (*InferenceEngine[T, R], error) {
 	if apiKey == "" {
 		return nil, errors.New("AIProvider API key is required")
 	}
 
-	return &InferenceEngine{
+	return &InferenceEngine[T, R]{
 		apiKey: apiKey,
 		httpClient: &http.Client{
 			Timeout: timeout,
@@ -88,9 +89,8 @@ type DecodingStrategy[T any] interface {
 	DecodeResponse(content string) (*T, error)
 }
 
-func ProcessRequest[T, R any](
+func (p *InferenceEngine[T, R]) ProcessRequest(
 	ctx context.Context,
-	engine *InferenceEngine,
 	promptStrategy PromptStrategy[R],
 	request R,
 	decodingStrategy DecodingStrategy[T],
@@ -112,7 +112,7 @@ func ProcessRequest[T, R any](
 	}
 
 	// Make request
-	resp, err := engine.makeRequest(ctx, aiReq)
+	resp, err := p.makeRequest(ctx, aiReq)
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +142,7 @@ func ProcessRequest[T, R any](
 }
 
 // Helper method for making HTTP requests
-func (p *InferenceEngine) makeRequest(ctx context.Context, AIProviderReq AIProviderRequest) (*http.Response, error) {
+func (p *InferenceEngine[T, R]) makeRequest(ctx context.Context, AIProviderReq AIProviderRequest) (*http.Response, error) {
 	reqBody, err := json.Marshal(AIProviderReq)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)

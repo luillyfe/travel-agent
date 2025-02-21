@@ -4,38 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+	"travel-agent/internal/models"
 )
-
-// Input structure for the extraction
-type ExtractionRequest struct {
-	Query    string
-	Deadline time.Time
-}
-
-// Define the expected output structure
-type TravelParameters struct {
-	DepartureCity string      `json:"departure_city"`
-	Destination   string      `json:"destination"`
-	DepartureDate *time.Time  `json:"departure_date"`
-	ReturnDate    *time.Time  `json:"return_date"`
-	Preferences   Preferences `json:"preferences"`
-}
-
-type Preferences struct {
-	BudgetRange struct {
-		Min *float64 `json:"min"`
-		Max *float64 `json:"max"`
-	} `json:"budget_range"`
-	TravelClass         string   `json:"travel_class"`
-	Activities          []string `json:"activities"`
-	DietaryRestrictions []string `json:"dietary_restrictions"`
-}
 
 // ExtractionPromptStrategy handles the extraction of travel parameters from natural language
 type ExtractionPromptStrategy struct{}
 
 // Make ExtractionPromptStrategy implement PromptStrategy[ExtractionRequest]
-var _ PromptStrategy[ExtractionRequest] = (*ExtractionPromptStrategy)(nil) // Type assertion for interface compliance
+var _ PromptStrategy[models.BookingRequest] = (*ExtractionPromptStrategy)(nil) // Type assertion for interface compliance
 
 // GetSystemPrompt returns the system prompt for parameter extraction
 func (s *ExtractionPromptStrategy) GetSystemPrompt() string {
@@ -71,7 +47,7 @@ Return only the JSON object, no additional text.`
 }
 
 // GetUserPrompt formats the user prompt with the request details
-func (s *ExtractionPromptStrategy) GetUserPrompt(req ExtractionRequest) string {
+func (s *ExtractionPromptStrategy) GetUserPrompt(req models.BookingRequest) string {
 	return fmt.Sprintf(`Extract travel parameters from this request:
 
 REQUEST TEXT:
@@ -95,7 +71,7 @@ Format as specified JSON structure.`,
 type ExtractionDecodingStrategy struct{}
 
 // validate checks if the required fields are present and valid
-func (d *ExtractionDecodingStrategy) validate(params *TravelParameters) error {
+func (d *ExtractionDecodingStrategy) validate(params *models.TravelParameters) error {
 	if params.DepartureCity == "" {
 		return fmt.Errorf("departure city is required")
 	}
@@ -126,9 +102,9 @@ func (d *ExtractionDecodingStrategy) validate(params *TravelParameters) error {
 	return nil
 }
 
-func (d *ExtractionDecodingStrategy) DecodeResponse(content string) (*TravelParameters, error) {
+func (d *ExtractionDecodingStrategy) DecodeResponse(content string) (*models.TravelParameters, error) {
 	// Parse the JSON content into TravelParameters
-	var params TravelParameters
+	var params models.TravelParameters
 	if err := json.Unmarshal([]byte(content), &params); err != nil {
 		return nil, fmt.Errorf("failed to parse travel parameters: %w", err)
 	}

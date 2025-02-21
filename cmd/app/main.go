@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"travel-agent/internal/config"
 	"travel-agent/internal/handlers"
+	"travel-agent/internal/models"
 	"travel-agent/internal/service"
 	"travel-agent/internal/service/ai"
 )
@@ -17,13 +18,17 @@ func main() {
 	}
 
 	// Initialize AI inference module
-	engine, err := ai.NewInferenceEngine(cfg.AIProvider.APIKey)
+	extractionInference, err := ai.NewInferenceEngine[models.TravelParameters, models.BookingRequest](cfg.AIProvider.APIKey)
+	if err != nil {
+		log.Fatalf("Failed to initialize AI processor: %v", err)
+	}
+	recommendationInference, err := ai.NewInferenceEngine[models.FlightRecommendation, models.FlightRecommendationRequest](cfg.AIProvider.APIKey)
 	if err != nil {
 		log.Fatalf("Failed to initialize AI processor: %v", err)
 	}
 
 	// Initialize services
-	bookingService := service.NewBookingService(engine)
+	bookingService := service.NewBookingService(extractionInference, recommendationInference)
 	bookingHandler := handlers.NewBookingHandler(bookingService)
 
 	// Setup routes

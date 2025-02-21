@@ -1,10 +1,22 @@
 package models
 
-import "time"
+import (
+	"time"
+)
 
+type BookingStatus string
+
+const (
+	StatusProcessing BookingStatus = "processing"
+	StatusConfirmed  BookingStatus = "confirmed"
+	StatusFailed     BookingStatus = "failed"
+)
+
+// Input structure for the extraction
 type BookingRequest struct {
-	Query    string `json:"query"`    // Natural language query for the booking
-	Deadline string `json:"deadline"` // When to stop looking for deals
+	Query    string    `json:"query"`    // Natural language query for the booking
+	Deadline time.Time `json:"deadline"` // When to stop looking for deals
+	// Deadline string `json:"deadline"`
 }
 
 type BookingResponse struct {
@@ -18,21 +30,64 @@ type BookingResponse struct {
 	UpdatedAt     time.Time     `json:"updated_at"`
 }
 
-type Flight struct {
-	Airline       string    `json:"airline"`
-	FlightNumber  string    `json:"flight_number"`
-	DepartureCity string    `json:"departure_city"`
-	ArrivalCity   string    `json:"arrival_city"`
-	DepartureTime time.Time `json:"departure_time"`
-	ArrivalTime   time.Time `json:"arrival_time"`
-	Price         float64   `json:"price"`
-	Currency      string    `json:"currency"`
+// Define the expected output structure
+type TravelParameters struct {
+	DepartureCity string      `json:"departure_city"`
+	Destination   string      `json:"destination"`
+	DepartureDate *time.Time  `json:"departure_date"`
+	ReturnDate    *time.Time  `json:"return_date"`
+	Preferences   Preferences `json:"preferences"`
 }
 
-type BookingStatus string
+type Preferences struct {
+	BudgetRange struct {
+		Min *float64 `json:"min"`
+		Max *float64 `json:"max"`
+	} `json:"budget_range"`
+	TravelClass         string   `json:"travel_class"`
+	Activities          []string `json:"activities"`
+	DietaryRestrictions []string `json:"dietary_restrictions"`
+}
 
-const (
-	StatusProcessing BookingStatus = "processing"
-	StatusConfirmed  BookingStatus = "confirmed"
-	StatusFailed     BookingStatus = "failed"
-)
+// FlightRecommendationRequest represents the input for flight recommendations
+type FlightRecommendationRequest struct {
+	DepartureCity  string    `json:"departure_city"`
+	Destination    string    `json:"destination"`
+	DepartureDate  time.Time `json:"departure_date"`
+	ReturnDate     time.Time `json:"return_date"`
+	Passengers     int       `json:"passengers"`
+	MaxBudget      float64   `json:"max_budget,omitempty"`
+	PreferredClass string    `json:"preferred_class,omitempty"`
+}
+
+// FlightRecommendation represents the structured output
+type FlightRecommendation struct {
+	Recommendations []Flight `json:"recommendations"`
+	Reasoning       string   `json:"reasoning"`
+}
+
+type Flight struct {
+	Airline             string    `json:"airline"`
+	FlightNumber        string    `json:"flight_number"`
+	DepartureCity       string    `json:"departure_city"`
+	DepartureTime       time.Time `json:"departure_time"`
+	ArrivalCity         string    `json:"arrival_city"`
+	ArrivalTime         time.Time `json:"arrival_time"`
+	Class               string    `json:"class"`
+	LayoverCount        int       `json:"layover_count"`
+	TotalDuration       string    `json:"total_duration"`
+	AvailableSeats      int       `json:"available_seats"`
+	RecommendationScore float64   `json:"recommendation_score"`
+	Price               float64   `json:"price"`
+	Currency            string    `json:"currency"`
+}
+
+// Define a single type for all travel-related requests
+type TravelInput interface {
+	BookingRequest | FlightRecommendationRequest
+}
+
+// Define a single type for all travel-related responses
+type TravelOutput interface {
+	TravelParameters | FlightRecommendation
+}
