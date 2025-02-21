@@ -10,40 +10,59 @@ import (
 	"github.com/google/uuid"
 )
 
-type AIInference interface {
-	ExtractParameters(ctx context.Context, strategy *ai.TravelExtractionStrategy, request ai.ExtractionRequest, decoder ai.DecodingStrategy[ai.TravelParameters]) (*ai.TravelParameters, error)
+type TravelParameterExtractor interface {
+	ProcessRequest(
+		ctx context.Context,
+		strategy ai.PromptStrategy[models.BookingRequest],
+		request models.BookingRequest,
+		decoder ai.DecodingStrategy[models.TravelParameters],
+	) (*models.TravelParameters, error)
+}
+
+type FlightRecommender interface {
+	ProcessRequest(
+		ctx context.Context,
+		strategy ai.PromptStrategy[models.FlightRecommendationRequest],
+		request models.FlightRecommendationRequest,
+		decoder ai.DecodingStrategy[models.FlightRecommendation],
+	) (*models.FlightRecommendation, error)
 }
 
 type BookingService struct {
-	aiInference AIInference
+	paramExtractor    TravelParameterExtractor
+	flightRecommender FlightRecommender
 }
 
-func NewBookingService(aiInference AIInference) *BookingService {
+func NewBookingService(
+	paramExtractor TravelParameterExtractor,
+	flightRecommender FlightRecommender,
+) *BookingService {
 	return &BookingService{
-		aiInference: aiInference,
+		paramExtractor:    paramExtractor,
+		flightRecommender: flightRecommender,
 	}
 }
 
 // ProcessBooking orchestrates the booking flow
-func (s *BookingService) ProcessBooking(req models.BookingRequest) (*models.BookingResponse, error) {
+func (s *BookingService) ProcessBooking(ctx context.Context, req models.BookingRequest) (*models.BookingResponse, error) {
 	if req.Query == "" {
 		return nil, fmt.Errorf("query cannot be empty")
 	}
 
-	// Parse and validate the request
-	deadline, err := s.parseDeadline(req.Deadline)
-	if err != nil {
-		return nil, fmt.Errorf("invalid request: %w", err)
-	}
-
 	// Extract travel parameters
-	travelParams, err := s.extractTravelParameters(req.Query, deadline)
+	travelParams, err := s.extractTravelParameters(ctx, req.Query, req.Deadline)
 	if err != nil {
 		return nil, fmt.Errorf("parameter extraction failed: %w", err)
 	}
 
+	// Get flight recommendations
+	recommendations, err := s.getFlightRecommendations(ctx, travelParams)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get flight recommendations: %w", err)
+	}
+
 	// Create booking response
-	response, err := s.createBookingResponse(req, travelParams, deadline)
+	response, err := s.createBookingResponse(req, recommendations, req.Deadline)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create booking response: %w", err)
 	}
@@ -51,28 +70,47 @@ func (s *BookingService) ProcessBooking(req models.BookingRequest) (*models.Book
 	return response, nil
 }
 
-// TODO: parseDeadline needs to accept NL deadlines like "tomorrow at 5pm".
-// parseDeadline handles deadline string to time.Time conversion
-func (s *BookingService) parseDeadline(deadlineStr string) (time.Time, error) {
-	deadline, err := time.Parse(time.RFC3339, deadlineStr)
-	if err != nil {
-		return time.Time{}, fmt.Errorf("invalid deadline format: %w", err)
+// getFlightRecommendations fetches flight recommendations from the AI engine
+func (s *BookingService) getFlightRecommendations(ctx context.Context, params *models.TravelParameters) (*models.FlightRecommendation, error) {
+	flightRecommendationStrategy := &ai.FlightRecommendationStrategy{}
+	decodingStrategy := &ai.FlightRecommendationDecoder{}
+
+	aiReq := models.FlightRecommendationRequest{
+		DepartureCity: params.DepartureCity,
+		Destination:   params.Destination,
+		DepartureDate: *params.DepartureDate,
+		ReturnDate:    *params.ReturnDate,
+		// hardcoded values for now
+		PreferredClass: "economy",
+		MaxBudget:      2000.0,
+		Passengers:     1,
 	}
-	return deadline, nil
+
+	recommendations, err := s.flightRecommender.ProcessRequest(
+		ctx,
+		flightRecommendationStrategy,
+		aiReq,
+		decodingStrategy,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("AI recommendation failed: %w", err)
+	}
+
+	return recommendations, nil
 }
 
 // extractTravelParameters handles the AI parameter extraction
-func (s *BookingService) extractTravelParameters(query string, deadline time.Time) (*ai.TravelParameters, error) {
-	extractionStrategy := &ai.TravelExtractionStrategy{}
-	decodingStrategy := &ai.TravelDecodingStrategy{}
+func (s *BookingService) extractTravelParameters(ctx context.Context, query string, deadline time.Time) (*models.TravelParameters, error) {
+	extractionStrategy := &ai.ExtractionPromptStrategy{}
+	decodingStrategy := &ai.ExtractionDecodingStrategy{}
 
-	aiReq := ai.ExtractionRequest{
+	aiReq := models.BookingRequest{
 		Query:    query,
 		Deadline: deadline,
 	}
 
-	params, err := s.aiInference.ExtractParameters(
-		context.Background(),
+	params, err := s.paramExtractor.ProcessRequest(
+		ctx,
 		extractionStrategy,
 		aiReq,
 		decodingStrategy,
@@ -87,7 +125,7 @@ func (s *BookingService) extractTravelParameters(query string, deadline time.Tim
 // createBookingResponse creates the booking response from extracted parameters
 func (s *BookingService) createBookingResponse(
 	req models.BookingRequest,
-	params *ai.TravelParameters,
+	params *models.FlightRecommendation,
 	deadline time.Time,
 ) (*models.BookingResponse, error) {
 	now := time.Now()
@@ -96,15 +134,19 @@ func (s *BookingService) createBookingResponse(
 		Status: models.StatusProcessing,
 		Query:  req.Query,
 		FlightDetails: &models.Flight{
-			DepartureCity: params.DepartureCity,
-			ArrivalCity:   params.Destination,
-			DepartureTime: *params.DepartureDate,
-			ArrivalTime:   *params.ReturnDate,
+			Airline:       params.Recommendations[0].Airline,
+			FlightNumber:  params.Recommendations[0].FlightNumber,
+			Price:         params.Recommendations[0].Price,
+			Currency:      "USD",
+			DepartureCity: params.Recommendations[0].DepartureCity,
+			ArrivalCity:   params.Recommendations[0].ArrivalCity,
+			DepartureTime: params.Recommendations[0].DepartureTime,
+			ArrivalTime:   params.Recommendations[0].ArrivalTime,
 		},
 		Deadline:  deadline,
 		CreatedAt: now,
 		UpdatedAt: now,
-		Message:   fmt.Sprintf("Searching for flights to %s", params.Destination),
+		Message:   fmt.Sprintf("Searching for flights to %s", params.Recommendations[0].ArrivalCity),
 	}
 
 	return response, nil
