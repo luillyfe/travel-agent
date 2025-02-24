@@ -21,7 +21,8 @@ A RESTful API service that processes travel booking requests using AI to find op
 │   └── service/            # Business logic
 │       ├── ai/             # AI inference services
 │       │   ├── inference.go
-│       │   └── travelParameterExtraction.go
+│       │   ├── travelParameterExtraction.go
+│       │   └── flightRecommendation.go
 │       └── booking.go
 ├── pkg/
 │   └── utils/              # Shared utilities
@@ -47,6 +48,7 @@ A RESTful API service that processes travel booking requests using AI to find op
 - `BookingService`: Core business logic for processing booking requests
 - `InferenceEngine`: Handles AI parameter extraction from natural language
 - `TravelParameterExtraction`: Processes travel-specific parameters
+- `FlightRecommendation`: AI-powered flight recommendations based on user preferences
 
 ### Configuration
 
@@ -101,6 +103,49 @@ Response:
 GET /api/v1/bookings/status?id={booking_id}
 ```
 
+### Get Flight Recommendations
+
+```
+POST /api/v1/recommendations
+```
+
+Request body:
+
+```json
+{
+  "query": "I want a flight with minimal layovers and preferably in the morning",
+  "preferences": {
+    "max_price": 1000,
+    "preferred_airlines": ["AirFrance", "KLM"],
+    "max_layovers": 1,
+    "time_preference": "morning"
+  }
+}
+```
+
+Response:
+
+```json
+{
+  "recommendations": [
+    {
+      "flight": {
+        "airline": "AirFrance",
+        "flight_number": "AF1234",
+        "departure_city": "Cúcuta",
+        "arrival_city": "Paris",
+        "departure_time": "2025-03-01T08:00:00Z",
+        "arrival_time": "2025-03-01T20:00:00Z",
+        "price": 850,
+        "currency": "USD"
+      },
+      "score": 0.95,
+      "reasoning": "This flight matches your preferences with a morning departure and no layovers"
+    }
+  ]
+}
+```
+
 ## Getting Started
 
 1. Clone the repository
@@ -134,14 +179,19 @@ Completed:
 - ✅ Request/Response models
 - ✅ Configuration management
 - ✅ AI integration framework
-- ✅ Booking service implementation
-- ✅ Test suite foundation
 - ✅ Parameter extraction from natural language
 - ✅ Health check endpoint
+- ✅ Flight recommendation engine
+- ✅ Preference-based scoring system
+
+In Progress:
+
+- 🔄 Booking service implementation
+- 🔄 Test suite foundation
+- 🔄 Flight search integration
 
 Pending:
 
-- ⏳ Flight search integration
 - ⏳ Database persistence
 - ⏳ Complete booking status retrieval
 - ⏳ Authentication/Authorization
@@ -153,10 +203,15 @@ Pending:
 ## Contributing
 
 1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
+2. Create a feature branch following the format:
+   - `feature/description` for new features
+   - `fix/description` for bug fixes
+   - `docs/description` for documentation changes
+3. Commit your changes using conventional commits
 4. Push to the branch
-5. Create a Pull Request
+5. Create a Pull Request against the `develop` branch
+
+Note: The `main` branch is protected. All changes must go through PR review.
 
 ## License
 
