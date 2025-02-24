@@ -5,15 +5,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 	"travel-agent/internal/models"
-	"travel-agent/internal/service"
 )
 
-type BookingHandler struct {
-	bookingService *service.BookingService
+type BookingServiceInterface interface {
+	ProcessBooking(ctx context.Context, req models.BookingRequest) (*models.BookingResponse, error)
 }
 
-func NewBookingHandler(bookingService *service.BookingService) *BookingHandler {
+type BookingHandler struct {
+	bookingService BookingServiceInterface
+}
+
+func NewBookingHandler(bookingService BookingServiceInterface) *BookingHandler {
 	return &BookingHandler{bookingService: bookingService}
 }
 
@@ -85,6 +89,10 @@ func validateBookingRequest(req models.BookingRequest) error {
 	}
 	if req.Deadline.IsZero() {
 		return fmt.Errorf("deadline is required")
+	}
+	// Check for past deadlines
+	if req.Deadline.Before(time.Now()) {
+		return fmt.Errorf("deadline cannot be in the past")
 	}
 
 	return nil

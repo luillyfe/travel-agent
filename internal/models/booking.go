@@ -82,12 +82,16 @@ type Flight struct {
 	Currency            string    `json:"currency"`
 }
 
+// Define mock response and request types
+type MockTravelResponse struct{}
+type MockTravelRequest struct{}
+
 // Define a single type for all travel-related requests
 type TravelInput interface {
-	BookingRequest | FlightRecommendationRequest
+	BookingRequest | FlightRecommendationRequest | MockTravelRequest
 }
 
 // Define a single type for all travel-related responses
 type TravelOutput interface {
-	TravelParameters | FlightRecommendation
+	TravelParameters | FlightRecommendation | MockTravelResponse
 }
