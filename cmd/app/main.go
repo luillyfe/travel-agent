@@ -17,14 +17,15 @@ func main() {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
 
-	// Initialize AI inference module
+	// Initialize AI inference engines
 	extractionInference, err := ai.NewInferenceEngine[models.TravelParameters, models.BookingRequest](cfg.AIProvider.APIKey)
 	if err != nil {
-		log.Fatalf("Failed to initialize AI processor: %v", err)
+		log.Fatalf("Failed to initialize extraction inference engine: %v", err)
 	}
+
 	recommendationInference, err := ai.NewInferenceEngine[models.FlightRecommendation, models.FlightRecommendationRequest](cfg.AIProvider.APIKey)
 	if err != nil {
-		log.Fatalf("Failed to initialize AI processor: %v", err)
+		log.Fatalf("Failed to initialize flight recommendation inference engine: %v", err)
 	}
 
 	// Initialize services
