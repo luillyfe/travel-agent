@@ -103,49 +103,6 @@ Response:
 GET /api/v1/bookings/status?id={booking_id}
 ```
 
-### Get Flight Recommendations
-
-```
-POST /api/v1/recommendations
-```
-
-Request body:
-
-```json
-{
-  "query": "I want a flight with minimal layovers and preferably in the morning",
-  "preferences": {
-    "max_price": 1000,
-    "preferred_airlines": ["AirFrance", "KLM"],
-    "max_layovers": 1,
-    "time_preference": "morning"
-  }
-}
-```
-
-Response:
-
-```json
-{
-  "recommendations": [
-    {
-      "flight": {
-        "airline": "AirFrance",
-        "flight_number": "AF1234",
-        "departure_city": "Cúcuta",
-        "arrival_city": "Paris",
-        "departure_time": "2025-03-01T08:00:00Z",
-        "arrival_time": "2025-03-01T20:00:00Z",
-        "price": 850,
-        "currency": "USD"
-      },
-      "score": 0.95,
-      "reasoning": "This flight matches your preferences with a morning departure and no layovers"
-    }
-  ]
-}
-```
-
 ## Getting Started
 
 1. Clone the repository
@@ -180,7 +137,6 @@ Completed:
 - ✅ Configuration management
 - ✅ AI integration framework
 - ✅ Parameter extraction from natural language
-- ✅ Health check endpoint
 - ✅ Flight recommendation engine
 - ✅ Preference-based scoring system
 
