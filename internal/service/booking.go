@@ -128,6 +128,11 @@ func (s *BookingService) createBookingResponse(
 	params *models.FlightRecommendation,
 	deadline time.Time,
 ) (*models.BookingResponse, error) {
+	// check if params.Recommendations is empty first.
+	if len(params.Recommendations) == 0 {
+		return nil, fmt.Errorf("no flight recommendations found")
+	}
+
 	now := time.Now()
 	response := &models.BookingResponse{
 		ID:     uuid.New().String(),
