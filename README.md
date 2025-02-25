@@ -21,7 +21,8 @@ A RESTful API service that processes travel booking requests using AI to find op
 │   └── service/            # Business logic
 │       ├── ai/             # AI inference services
 │       │   ├── inference.go
-│       │   └── travelParameterExtraction.go
+│       │   ├── travelParameterExtraction.go
+│       │   └── flightRecommendation.go
 │       └── booking.go
 ├── pkg/
 │   └── utils/              # Shared utilities
@@ -47,6 +48,7 @@ A RESTful API service that processes travel booking requests using AI to find op
 - `BookingService`: Core business logic for processing booking requests
 - `InferenceEngine`: Handles AI parameter extraction from natural language
 - `TravelParameterExtraction`: Processes travel-specific parameters
+- `FlightRecommendation`: AI-powered flight recommendations based on user preferences
 
 ### Configuration
 
@@ -134,14 +136,18 @@ Completed:
 - ✅ Request/Response models
 - ✅ Configuration management
 - ✅ AI integration framework
-- ✅ Booking service implementation
-- ✅ Test suite foundation
 - ✅ Parameter extraction from natural language
-- ✅ Health check endpoint
+- ✅ Flight recommendation engine
+- ✅ Preference-based scoring system
+
+In Progress:
+
+- 🔄 Booking service implementation
+- 🔄 Test suite foundation
+- 🔄 Flight search integration
 
 Pending:
 
-- ⏳ Flight search integration
 - ⏳ Database persistence
 - ⏳ Complete booking status retrieval
 - ⏳ Authentication/Authorization
@@ -153,10 +159,15 @@ Pending:
 ## Contributing
 
 1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
+2. Create a feature branch following the format:
+   - `feature/description` for new features
+   - `fix/description` for bug fixes
+   - `docs/description` for documentation changes
+3. Commit your changes using conventional commits
 4. Push to the branch
-5. Create a Pull Request
+5. Create a Pull Request against the `develop` branch
+
+Note: The `main` branch is protected. All changes must go through PR review.
 
 ## License
 

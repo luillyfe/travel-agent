@@ -1,18 +1,23 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 	"travel-agent/internal/models"
-	"travel-agent/internal/service"
 )
 
-type BookingHandler struct {
-	bookingService *service.BookingService
+type BookingServiceInterface interface {
+	ProcessBooking(ctx context.Context, req models.BookingRequest) (*models.BookingResponse, error)
 }
 
-func NewBookingHandler(bookingService *service.BookingService) *BookingHandler {
+type BookingHandler struct {
+	bookingService BookingServiceInterface
+}
+
+func NewBookingHandler(bookingService BookingServiceInterface) *BookingHandler {
 	return &BookingHandler{bookingService: bookingService}
 }
 
@@ -35,7 +40,7 @@ func (h *BookingHandler) CreateBooking(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Process the booking request
-	response, err := h.bookingService.ProcessBooking(req)
+	response, err := h.bookingService.ProcessBooking(context.Background(), req)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -82,8 +87,13 @@ func validateBookingRequest(req models.BookingRequest) error {
 	if req.Query == "" {
 		return fmt.Errorf("query cannot be empty")
 	}
-	if req.Deadline == "" {
-		return fmt.Errorf("deadline cannot be empty")
+	if req.Deadline.IsZero() {
+		return fmt.Errorf("deadline is required")
 	}
+	// Check for past deadlines
+	if req.Deadline.Before(time.Now()) {
+		return fmt.Errorf("deadline cannot be in the past")
+	}
+
 	return nil
 }
