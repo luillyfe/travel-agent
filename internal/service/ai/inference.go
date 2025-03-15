@@ -201,8 +201,8 @@ func (p *InferenceEngine[T, R]) makeRequest(ctx context.Context, AIProviderReq A
 
 // processToolCalls executes the tools called by the AI and returns the result
 func (p *InferenceEngine[T, R]) processToolCalls(ctx context.Context, toolCalls []struct {
-	ID   string `json:"id"`
-	Type string `json:"type"`
+	ID       string `json:"id"`
+	Type     string `json:"type"`
 	Function struct {
 		Name      string `json:"name"`
 		Arguments string `json:"arguments"`
@@ -248,3 +248,4 @@ func (p *InferenceEngine[T, R]) processToolCalls(ctx context.Context, toolCalls 
 	}
 
 	return string(resultsJSON), nil
+}
