@@ -28,6 +28,13 @@ func main() {
 		log.Fatalf("Failed to initialize flight recommendation inference engine: %v", err)
 	}
 
+	// Register tools with inference engines
+	// Example: Register a city validation tool with the extraction inference engine
+	// extractionInference.RegisterTool(tools.NewCityValidationTool())
+
+	// Example: Register a flight search tool with the recommendation inference engine
+	// recommendationInference.RegisterTool(tools.NewFlightSearchTool())
+
 	// Initialize services
 	bookingService := service.NewBookingService(extractionInference, recommendationInference)
 	bookingHandler := handlers.NewBookingHandler(bookingService)

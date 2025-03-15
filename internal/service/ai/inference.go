@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 	"travel-agent/internal/models"
+	"travel-agent/internal/service/ai/tools"
 	"travel-agent/pkg/utils"
 )
 
@@ -20,8 +21,9 @@ const (
 )
 
 type InferenceEngine[T models.TravelOutput, R models.TravelInput] struct {
-	apiKey     string
-	httpClient *http.Client
+	apiKey       string
+	httpClient   *http.Client
+	toolRegistry *tools.ToolRegistry
 }
 
 // ResponseFormat the format that the response must adhere to
@@ -39,13 +41,24 @@ func NewInferenceEngine[T models.TravelOutput, R models.TravelInput](apiKey stri
 		httpClient: &http.Client{
 			Timeout: timeout,
 		},
+		toolRegistry: tools.NewToolRegistry(),
 	}, nil
 }
 
+// RegisterTool adds a tool to the inference engine's registry
+func (p *InferenceEngine[T, R]) RegisterTool(tool tools.Tool) error {
+	if p.toolRegistry == nil {
+		p.toolRegistry = tools.NewToolRegistry()
+	}
+	return p.toolRegistry.RegisterTool(tool)
+}
+
 type AIProviderRequest struct {
-	Model          string          `json:"model"`
-	Messages       []AIProviderMsg `json:"messages"`
-	ResponseFormat ResponseFormat  `json:"response_format"`
+	Model          string                   `json:"model"`
+	Messages       []AIProviderMsg          `json:"messages"`
+	ResponseFormat ResponseFormat           `json:"response_format"`
+	Tools          []map[string]interface{} `json:"tools,omitempty"`
+	ToolChoice     interface{}              `json:"tool_choice,omitempty"`
 }
 
 type AIProviderMsg struct {
@@ -63,8 +76,16 @@ type AIProviderResponse struct {
 	Choices []struct {
 		Index   int `json:"index"`
 		Message struct {
-			Role    string `json:"role"`
-			Content string `json:"content"`
+			Role      string `json:"role"`
+			Content   string `json:"content"`
+			ToolCalls []struct {
+				ID       string `json:"id"`
+				Type     string `json:"type"`
+				Function struct {
+					Name      string `json:"name"`
+					Arguments string `json:"arguments"`
+				} `json:"function"`
+			} `json:"tool_calls,omitempty"`
 		} `json:"message"`
 		FinishReason string `json:"finish_reason"`
 	} `json:"choices"`
@@ -111,6 +132,13 @@ func (p *InferenceEngine[T, R]) ProcessRequest(
 		},
 	}
 
+	// Add tools if available
+	if p.toolRegistry != nil && len(p.toolRegistry.ListTools()) > 0 {
+		aiReq.Tools = p.toolRegistry.ListMistralTools()
+		// Set tool_choice to "auto" to let the model decide when to use tools
+		aiReq.ToolChoice = "auto"
+	}
+
 	// Make request
 	resp, err := p.makeRequest(ctx, aiReq)
 	if err != nil {
@@ -137,7 +165,19 @@ func (p *InferenceEngine[T, R]) ProcessRequest(
 		return nil, errors.New("no response from AI provider")
 	}
 
-	// Decode the response
+	// Check if there are tool calls to process
+	if len(aiResp.Choices) > 0 && len(aiResp.Choices[0].Message.ToolCalls) > 0 {
+		// Process tool calls
+		response, err := p.processToolCalls(ctx, aiResp.Choices[0].Message.ToolCalls)
+		if err != nil {
+			return nil, fmt.Errorf("failed to process tool calls: %w", err)
+		}
+
+		// Decode the response after tool processing
+		return decodingStrategy.DecodeResponse(response)
+	}
+
+	// Decode the response if no tool calls
 	return decodingStrategy.DecodeResponse(aiResp.Choices[0].Message.Content)
 }
 
@@ -158,3 +198,53 @@ func (p *InferenceEngine[T, R]) makeRequest(ctx context.Context, AIProviderReq A
 
 	return p.httpClient.Do(httpReq)
 }
+
+// processToolCalls executes the tools called by the AI and returns the result
+func (p *InferenceEngine[T, R]) processToolCalls(ctx context.Context, toolCalls []struct {
+	ID   string `json:"id"`
+	Type string `json:"type"`
+	Function struct {
+		Name      string `json:"name"`
+		Arguments string `json:"arguments"`
+	} `json:"function"`
+}) (string, error) {
+	if p.toolRegistry == nil {
+		return "", fmt.Errorf("tool registry is not initialized")
+	}
+
+	// Process each tool call
+	var toolResults []map[string]interface{}
+	for _, call := range toolCalls {
+		// Get the tool from registry
+		tool, exists := p.toolRegistry.GetTool(call.Function.Name)
+		if !exists {
+			return "", fmt.Errorf("tool '%s' not found in registry", call.Function.Name)
+		}
+
+		// Parse arguments
+		var args map[string]interface{}
+		if err := json.Unmarshal([]byte(call.Function.Arguments), &args); err != nil {
+			return "", fmt.Errorf("failed to parse tool arguments: %w", err)
+		}
+
+		// Execute the tool
+		result, err := tool.Execute(ctx, args)
+		if err != nil {
+			return "", fmt.Errorf("failed to execute tool '%s': %w", call.Function.Name, err)
+		}
+
+		// Add result to the list
+		toolResults = append(toolResults, map[string]interface{}{
+			"tool_call_id": call.ID,
+			"name":         call.Function.Name,
+			"result":       result,
+		})
+	}
+
+	// Convert results to JSON
+	resultsJSON, err := json.Marshal(toolResults)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal tool results: %w", err)
+	}
+
+	return string(resultsJSON), nil
