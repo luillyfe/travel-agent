@@ -77,15 +77,31 @@ func TestProcessRequest(t *testing.T) {
 			Choices: []struct {
 				Index   int `json:"index"`
 				Message struct {
-					Role    string `json:"role"`
-					Content string `json:"content"`
+					Role      string `json:"role"`
+					Content   string `json:"content"`
+					ToolCalls []struct {
+						ID       string `json:"id"`
+						Type     string `json:"type"`
+						Function struct {
+							Name      string `json:"name"`
+							Arguments string `json:"arguments"`
+						} `json:"function"`
+					} `json:"tool_calls,omitempty"`
 				} `json:"message"`
 				FinishReason string `json:"finish_reason"`
 			}{
 				{
 					Message: struct {
-						Role    string `json:"role"`
-						Content string `json:"content"`
+						Role      string `json:"role"`
+						Content   string `json:"content"`
+						ToolCalls []struct {
+							ID       string `json:"id"`
+							Type     string `json:"type"`
+							Function struct {
+								Name      string `json:"name"`
+								Arguments string `json:"arguments"`
+							} `json:"function"`
+						} `json:"tool_calls,omitempty"`
 					}{
 						Role:    "assistant",
 						Content: `{}`,
