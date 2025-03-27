@@ -8,6 +8,8 @@ import (
 	"testing"
 	"travel-agent/internal/config"
 	"travel-agent/internal/server"
+
+	"github.com/gin-gonic/gin"
 )
 
 func TestHealthHandler(t *testing.T) {
@@ -23,7 +25,11 @@ func TestHealthHandler(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	// Execute request
-	http.HandlerFunc(srv.HealthHandler).ServeHTTP(w, req)
+	router := gin.Default()
+	router.GET("/health", func(c *gin.Context) {
+		srv.HealthHandler(c.Writer, c.Request)
+	})
+	router.ServeHTTP(w, req)
 
 	// Check status code
 	if w.Code != http.StatusOK {

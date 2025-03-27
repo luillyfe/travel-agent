@@ -88,12 +88,14 @@ func TestProcessRequest(t *testing.T) {
 						Content string `json:"content"`
 					}{
 						Role:    "assistant",
-						Content: `{}`, // Empty JSON object since models.MockTravelResponse is empty
+						Content: `{}`,
 					},
 				},
 			},
 		}
-		json.NewEncoder(w).Encode(response)
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			t.Fatalf("Failed to encode mock response: %v", err)
+		}
 	}))
 	defer server.Close()
 
@@ -159,7 +161,9 @@ func TestProcessRequestError(t *testing.T) {
 				Message:    "Test error",
 			},
 		}
-		json.NewEncoder(w).Encode(response)
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			t.Fatalf("Failed to encode error response: %v", err)
+		}
 	}))
 	defer server.Close()
 

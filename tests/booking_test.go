@@ -348,7 +348,9 @@ func TestBookingHandler_GetBooking(t *testing.T) {
 			setupMock: func(m *MockBookingService) {
 				m.processGetBookingFunc = func(w http.ResponseWriter, r *http.Request) {
 					booking := createSampleBooking("valid-booking-id")
-					json.NewEncoder(w).Encode(booking)
+					if err := json.NewEncoder(w).Encode(booking); err != nil {
+						t.Fatalf("Failed to encode response: %v", err)
+					}
 				}
 			},
 			expectedStatus: http.StatusOK,

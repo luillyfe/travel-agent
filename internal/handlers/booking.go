@@ -48,7 +48,11 @@ func (h *BookingHandler) CreateBooking(w http.ResponseWriter, r *http.Request) {
 
 	// Return response
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	// If writing fails for any reason(network issues, closed connection), respond with an error
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
 }
 
 func (h *BookingHandler) GetBooking(w http.ResponseWriter, r *http.Request) {
@@ -72,15 +76,23 @@ func (h *BookingHandler) GetBooking(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	// If writing fails for any reason(network issues, closed connection), respond with an error
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to encode response")
+		return
+	}
 }
 
 func respondWithError(w http.ResponseWriter, code int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
-	json.NewEncoder(w).Encode(map[string]string{
+	if err := json.NewEncoder(w).Encode(map[string]string{
 		"error": message,
-	})
+	}); err != nil {
+		// If encoding fails, log the error but don't attempt to send another response
+		// since headers have already been written
+		fmt.Printf("Failed to encode error response: %v\n", err)
+	}
 }
 
 func validateBookingRequest(req models.BookingRequest) error {
