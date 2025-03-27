@@ -2,12 +2,13 @@ package main
 
 import (
 	"log"
-	"net/http"
 	"travel-agent/internal/config"
 	"travel-agent/internal/handlers"
 	"travel-agent/internal/models"
 	"travel-agent/internal/service"
 	"travel-agent/internal/service/ai"
+
+	"github.com/gin-gonic/gin"
 )
 
 func main() {
@@ -39,13 +40,20 @@ func main() {
 	bookingService := service.NewBookingService(extractionInference, recommendationInference)
 	bookingHandler := handlers.NewBookingHandler(bookingService)
 
+	// Create Gin router
+	router := gin.Default()
+
 	// Setup routes
-	http.HandleFunc("/api/v1/bookings", bookingHandler.CreateBooking)
-	http.HandleFunc("/api/v1/bookings/status", bookingHandler.GetBooking)
+	router.POST("/api/v1/bookings", func(c *gin.Context) {
+		bookingHandler.CreateBooking(c.Writer, c.Request)
+	})
+	router.GET("/api/v1/bookings/status", func(c *gin.Context) {
+		bookingHandler.GetBooking(c.Writer, c.Request)
+	})
 
 	// Start server
 	log.Printf("Server starting on port %s", cfg.ServerPort)
-	if err := http.ListenAndServe(cfg.ServerPort, nil); err != nil {
+	if err := router.Run(cfg.ServerPort); err != nil {
 		log.Fatalf("Server failed to start: %v", err)
 	}
 }

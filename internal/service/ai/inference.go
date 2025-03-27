@@ -144,10 +144,17 @@ func (p *InferenceEngine[T, R]) ProcessRequest(
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			// Log the error but don't override any existing error return
+			fmt.Printf("error closing response body: %v\n", err)
+		}
+	}()
 
 	// Log response if enabled
-	utils.LogResponseWithoutConsuming(resp)
+	if err := utils.LogResponseWithoutConsuming(resp); err != nil {
+		fmt.Printf("failed to log response: %v\n", err)
+	}
 
 	// Parse response
 	var aiResp AIProviderResponse
